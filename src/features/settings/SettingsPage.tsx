@@ -2,6 +2,7 @@ import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { useAppData } from "@/state/useAppData";
+import { useAuthContext } from "@/state/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
@@ -20,6 +21,23 @@ import {
   type SolarFormValues,
   type TariffFormValues,
 } from "./settingsSchema";
+
+function LogoutButton() {
+  const { isAuthenticated } = useAuthContext();
+
+  async function handleLogout() {
+    if (isAuthenticated) {
+      try {
+        localStorage.removeItem("auth_token");
+        window.location.href = "/login";
+      } catch (error) {
+        toast.error("Failed to log out");
+      }
+    }
+  }
+
+  return <Button variant="outline" onClick={handleLogout} className="w-full">Log out</Button>;
+}
 
 function ProfileTab() {
   const { config, updateConfig } = useAppData();
@@ -207,11 +225,16 @@ function BillingTab() {
 }
 
 export function SettingsPage() {
+  const { user } = useAppData();
+
   return (
     <Card>
       <CardHeader>
         <CardTitle>Settings</CardTitle>
         <CardDescription>Profile, rate plan, solar export, and billing period.</CardDescription>
+        {user && (
+          <div className="text-sm text-muted-foreground">{user.name} - {user.email}</div>
+        )}
       </CardHeader>
       <CardContent>
         <Tabs defaultValue="profile">
@@ -232,9 +255,10 @@ export function SettingsPage() {
           </TabsContent>
           <TabsContent value="billing">
             <BillingTab />
-          </TabsContent>
-        </Tabs>
-      </CardContent>
-    </Card>
-  );
+           </TabsContent>
+         </Tabs>
+         {user && <LogoutButton />}
+       </CardContent>
+     </Card>
+   );
 }

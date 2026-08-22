@@ -6,6 +6,13 @@ export interface AppDataAverages {
   amountPaid: number | null;
 }
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+}
+
 export interface AppDataContextValue {
   config: AppConfig;
   readings: MeterReading[];
@@ -14,8 +21,11 @@ export interface AppDataContextValue {
   currentPeriod: BillingPeriod | undefined;
   projection: PeriodProjection | null;
   averages: AppDataAverages;
-  addReading: (input: { consumptionReading: number; exportReading?: number }) => void;
-  updateConfig: (patch: Partial<AppConfig>) => void;
+   addReading: (input: { consumptionReading: number; exportReading?: number }) => void;
+   updateConfig: (patch: Partial<AppConfig>) => void;
+   setUser: (user: AuthUser | null) => void;
+   user: AuthUser | null;
+   isAuthenticated: boolean;
 }
 
 export const AppDataContext = createContext<AppDataContextValue | null>(null);

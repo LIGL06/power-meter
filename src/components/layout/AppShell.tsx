@@ -16,6 +16,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Toaster } from "@/components/ui/sonner";
 import { useAppData } from "@/state/useAppData";
+import { useAuthContext } from "@/state/AuthContext";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -23,9 +24,27 @@ const NAV_ITEMS = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
+function LogoutButton() {
+  const { isAuthenticated } = useAuthContext();
+
+  async function handleLogout() {
+    if (isAuthenticated) {
+      try {
+        // Direct localStorage manipulation to avoid auth errors
+        localStorage.removeItem("auth_token");
+        window.location.href = "/login";
+      } catch (error) {
+        console.error("Logout failed", error);
+      }
+    }
+  }
+
+  return <button onClick={handleLogout} className="px-2 py-1 text-sm hover:underline">Log out</button>;
+}
+
 export function AppShell() {
   const location = useLocation();
-  const { config } = useAppData();
+  const { config, user } = useAppData();
 
   const activeItem = NAV_ITEMS.find((item) => item.to === location.pathname);
 
@@ -62,7 +81,11 @@ export function AppShell() {
         <header className="flex h-14 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger />
           <Separator orientation="vertical" className="h-5" />
-          <h1 className="text-sm font-medium">{activeItem?.label ?? config.tariff.planName}</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-sm font-medium">{activeItem?.label ?? config.tariff.planName}</h1>
+            {user && <span className="text-xs text-muted-foreground">{user.name}</span>}
+          </div>
+          <LogoutButton />
         </header>
         <div className="flex-1 overflow-auto p-4 md:p-6">
           <Outlet />
@@ -72,3 +95,5 @@ export function AppShell() {
     </SidebarProvider>
   );
 }
+
+export default AppShell;

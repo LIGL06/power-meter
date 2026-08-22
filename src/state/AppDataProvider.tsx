@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, useMemo } from "react";
 import type { AppConfig, MeterReading } from "@/domain/types";
 import { todayISO } from "@/domain/date-utils";
 import {
@@ -10,30 +10,55 @@ import {
 import { averageAmountPaid, averageConsumption } from "@/domain/statistics";
 import { generateSeedConfig, generateSeedReadings } from "@/data/seed";
 import { configRepository, readingsRepository } from "@/data/repositories";
-import { AppDataContext, type AppDataContextValue } from "./AppDataContext";
+import { AppDataContext } from "./AppDataContext";
+
+export interface AppDataContextValue {
+  config: AppConfig;
+  readings: MeterReading[];
+  periods: any[]; // Adjusted based on context, will check actual type if possible
+  completedPeriods: any[];
+  currentPeriod: any;
+  projection: any;
+  averages: { consumptionKwh: number; amountPaid: number };
+  addReading: (input: { consumptionReading: number; exportReading?: number }) => void;
+  updateConfig: (patch: Partial<AppConfig>) => void;
+  user: AuthUser | null;
+  isAuthenticated: boolean;
+}
+function AuthContextProvider({ children, value }: { children: React.ReactNode; value: AuthContextValue }) {
+  return <AuthContextProvider value={value}>{children}</AuthContextProvider>;
+}
+
+interface AuthUser {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+}
 
 interface LoadedData {
   config: AppConfig;
   readings: MeterReading[];
+  user: AuthUser | null;
 }
 
 /** Seeds exactly once, on first-ever load (when the config repository has nothing saved yet). */
 function loadOrSeed(): LoadedData {
   const existingConfig = configRepository.getConfig();
   if (existingConfig) {
-    return { config: existingConfig, readings: readingsRepository.getAll() };
+    return { config: existingConfig, readings: readingsRepository.getAll(), user: null };
   }
 
   const seedConfig = generateSeedConfig();
   const seedReadings = generateSeedReadings(seedConfig.billingAnchorDate);
   configRepository.saveConfig(seedConfig);
   readingsRepository.saveAll(seedReadings);
-  return { config: seedConfig, readings: seedReadings };
+  return { config: seedConfig, readings: seedReadings, user: null };
 }
 
-export function AppDataProvider({ children }: { children: ReactNode }) {
+export function AppDataProvider({ children }: { children: React.ReactNode }) {
   // Lazy initializer avoids an empty-then-populated first paint.
-  const [{ config, readings }, setState] = useState(loadOrSeed);
+  const [{ config, readings, user }, setState] = useState<LoadedData>(loadOrSeed);
 
   const asOfDate = todayISO();
 
@@ -76,24 +101,17 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   }
 
   function updateConfig(patch: Partial<AppConfig>) {
-    setState((prev) => {
-      const nextConfig = { ...prev.config, ...patch };
-      configRepository.saveConfig(nextConfig);
-      return { ...prev, config: nextConfig };
-    });
+    const nextConfig = { ...config, ...patch };
+    configRepository.saveConfig(nextConfig);
+    setState((prev) => ({ ...prev, config: nextConfig }));
   }
 
-  const value: AppDataContextValue = {
-    config,
-    readings,
-    periods,
-    completedPeriods,
-    currentPeriod,
-    projection,
-    averages,
-    addReading,
-    updateConfig,
-  };
-
-  return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
+  function setUser(user: AuthUser | null) {
+    setState((prev) => ({ ...prev, user }));
+  }
+  return (
+    <AppDataContext.Provider value={{ config, readings, periods, completedPeriods, currentPeriod, projection, averages, addReading, updateConfig, user, isAuthenticated: !!user, setUser }}>
+      <AuthContextProvider value={{ isAuthenticated: !!user }}>{children}</AuthContextProvider>
+    </AppDataContext.Provider>
+  );
 }

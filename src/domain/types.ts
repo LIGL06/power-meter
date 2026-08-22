@@ -27,7 +27,8 @@ export interface SolarConfig {
 
 /** Plain local fields — no real authentication anywhere in this app. */
 export interface ProfileConfig {
-  name: string;
+  firstName: string;
+  lastName: string;
   address: string;
   password: string;
 }

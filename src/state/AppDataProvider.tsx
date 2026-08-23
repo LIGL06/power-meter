@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import type { AppConfig, MeterReading } from "@/domain/types";
 import { todayISO } from "@/domain/date-utils";
 import {
@@ -10,6 +10,7 @@ import {
 import { averageAmountPaid, averageConsumption } from "@/domain/statistics";
 import { generateSeedConfig, generateSeedReadings } from "@/data/seed";
 import { configRepository, readingsRepository } from "@/data/repositories";
+import { getAccessToken, getProfile, clearTokens } from "@/lib/api";
 import { AppDataContext, type AuthUser } from "./AppDataContext";
 
 interface LoadedData {
@@ -35,6 +36,19 @@ function loadOrSeed(): LoadedData {
 export function AppDataProvider({ children }: { children: React.ReactNode }) {
   // Lazy initializer avoids an empty-then-populated first paint.
   const [{ config, readings, user }, setState] = useState<LoadedData>(loadOrSeed);
+  const [authReady, setAuthReady] = useState(false);
+
+  // Rehydrates the session from a stored access token so a page refresh doesn't drop the user.
+  useEffect(() => {
+    if (!getAccessToken()) {
+      setAuthReady(true);
+      return;
+    }
+    getProfile()
+      .then((res) => setState((prev) => ({ ...prev, user: res.data })))
+      .catch(() => clearTokens())
+      .finally(() => setAuthReady(true));
+  }, []);
 
   const asOfDate = todayISO();
 
@@ -86,7 +100,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({ ...prev, user }));
   }
   return (
-    <AppDataContext.Provider value={{ config, readings, periods, completedPeriods, currentPeriod, projection, averages, addReading, updateConfig, user, isAuthenticated: !!user, setUser }}>
+    <AppDataContext.Provider value={{ config, readings, periods, completedPeriods, currentPeriod, projection, averages, addReading, updateConfig, user, isAuthenticated: !!user, setUser, authReady }}>
       {children}
     </AppDataContext.Provider>
   );

@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { login } from "@/lib/api";
+import { login, setTokens } from "@/lib/api";
 import { useAppData } from "@/state/useAppData";
 
 export function LoginPage() {
@@ -20,7 +20,7 @@ export function LoginPage() {
     setIsLoading(true);
     try {
       const response = await login(data.email, data.password).then(res => res.data);
-      localStorage.setItem("auth_token", response.accessToken);
+      setTokens(response.accessToken, response.refreshToken);
       setUser(response.user);
       navigate("/");
       toast.success("Welcome back!");

@@ -15,6 +15,7 @@ export interface AppDataResult {
   setUser: (user: AuthUser | null) => void;
   user: AuthUser | null;
   isAuthenticated: boolean;
+  authReady: boolean;
 }
 
 export function useAppData(): AppDataResult {

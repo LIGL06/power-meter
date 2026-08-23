@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Gauge, LayoutDashboard, Settings, Zap } from "lucide-react";
 import {
   Sidebar,
@@ -16,6 +16,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Toaster } from "@/components/ui/sonner";
 import { useAppData } from "@/state/useAppData";
+import { logout as logoutRequest, clearTokens } from "@/lib/api";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -24,17 +25,19 @@ const NAV_ITEMS = [
 ];
 
 function LogoutButton() {
-  const { isAuthenticated } = useAppData();
+  const { isAuthenticated, setUser } = useAppData();
+  const navigate = useNavigate();
 
   async function handleLogout() {
-    if (isAuthenticated) {
-      try {
-        // Direct localStorage manipulation to avoid auth errors
-        localStorage.removeItem("auth_token");
-        window.location.href = "/login";
-      } catch (error) {
-        console.error("Logout failed", error);
-      }
+    if (!isAuthenticated) return;
+    try {
+      await logoutRequest();
+    } catch (error) {
+      console.error("Logout request failed", error);
+    } finally {
+      clearTokens();
+      setUser(null);
+      navigate("/login");
     }
   }
 

@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import defaultApi from "@/lib/api";
+import defaultApi, { setTokens } from "@/lib/api";
 import { useAppData } from "@/state/useAppData";
 
 export function RegisterPage() {
@@ -16,11 +16,11 @@ export function RegisterPage() {
 
   const { register, handleSubmit, formState: { errors } } = useForm<any>();
 
-  async function onSubmit({ firstName, lastName, email, password, address }: any) {
+  async function onSubmit({ firstName, lastName, email, password }: any) {
     setIsLoading(true);
     try {
-      const response = await defaultApi.register({ firstName, lastName, email, password, address }).then(res => res.data);
-      localStorage.setItem("auth_token", response.accessToken);
+      const response = await defaultApi.register({ firstName, lastName, email, password }).then(res => res.data);
+      setTokens(response.accessToken, response.refreshToken);
       setUser(response.user);
       navigate("/");
       toast.success("Account created successfully!");

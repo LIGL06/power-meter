@@ -12,6 +12,7 @@ export interface AppDataResult {
   averages: AppDataAverages;
   addReading: (input: { consumptionReading: number; exportReading?: number }) => void;
   updateConfig: (patch: Partial<AppConfig>) => void;
+  setUser: (user: AuthUser | null) => void;
   user: AuthUser | null;
   isAuthenticated: boolean;
 }

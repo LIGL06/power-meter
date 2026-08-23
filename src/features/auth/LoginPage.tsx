@@ -7,10 +7,12 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { login } from "@/lib/api";
+import { useAppData } from "@/state/useAppData";
 
 export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { setUser } = useAppData();
 
   const { register, handleSubmit, formState: { errors } } = useForm<any>();
 
@@ -19,6 +21,7 @@ export function LoginPage() {
     try {
       const response = await login(data.email, data.password).then(res => res.data);
       localStorage.setItem("auth_token", response.accessToken);
+      setUser(response.user);
       navigate("/");
       toast.success("Welcome back!");
     } catch (error: any) {

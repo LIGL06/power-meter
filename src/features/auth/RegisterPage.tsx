@@ -7,19 +7,21 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import defaultApi from "@/lib/api";
+import { useAppData } from "@/state/useAppData";
 
 export function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
+  const { setUser } = useAppData();
 
   const { register, handleSubmit, formState: { errors } } = useForm<any>();
 
-  async function onSubmit({ name, email, password, address }: any) {
+  async function onSubmit({ firstName, lastName, email, password, address }: any) {
     setIsLoading(true);
     try {
-      // Import here to avoid circular deps and handle the API call directly
-      const response = await defaultApi.register({ firstName: name, email, password, address }).then(res => res.data);
+      const response = await defaultApi.register({ firstName, lastName, email, password, address }).then(res => res.data);
       localStorage.setItem("auth_token", response.accessToken);
+      setUser(response.user);
       navigate("/");
       toast.success("Account created successfully!");
     } catch (error: any) {
@@ -39,9 +41,15 @@ export function RegisterPage() {
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
             <Field>
-              <FieldLabel htmlFor="name">Name</FieldLabel>
-              <Input id="name" {...register("name")} aria-invalid={!!errors.name} />
-              <FieldError errors={errors.name ? [errors.name] : undefined} />
+              <FieldLabel htmlFor="firstName">First Name(s)</FieldLabel>
+              <Input id="firstName" {...register("firstName")} aria-invalid={!!errors.firstName} />
+              <FieldError errors={errors.firstName ? [errors.firstName] : undefined} />
+            </Field>
+
+            <Field>
+              <FieldLabel htmlFor="lastName">Last Name(s)</FieldLabel>
+              <Input id="lastName" {...register("lastName")} aria-invalid={!!errors.lastName} />
+              <FieldError errors={errors.lastName ? [errors.lastName] : undefined} />
             </Field>
 
             <Field>
@@ -54,12 +62,6 @@ export function RegisterPage() {
               <FieldLabel htmlFor="password">Password</FieldLabel>
               <Input id="password" type="password" {...register("password")} aria-invalid={!!errors.password} />
               <FieldError errors={errors.password ? [errors.password] : undefined} />
-            </Field>
-
-            <Field>
-              <FieldLabel htmlFor="address">Address</FieldLabel>
-              <Input id="address" {...register("address")} aria-invalid={!!errors.address} />
-              <FieldError errors={errors.address ? [errors.address] : undefined} />
             </Field>
 
             <Button type="submit" className="w-full" disabled={isLoading}>

@@ -8,7 +8,8 @@ const BASE_DAILY_EXPORT_KWH = 6;
 export function generateSeedConfig(): AppConfig {
   return {
     profile: {
-      name: "Alex Rivera",
+      firstName: "Alex",
+      lastName: "Rivera",
       address: "123 Maple Street, Springfield",
       password: "changeme123",
     },

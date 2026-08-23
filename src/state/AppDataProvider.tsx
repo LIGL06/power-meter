@@ -10,31 +10,7 @@ import {
 import { averageAmountPaid, averageConsumption } from "@/domain/statistics";
 import { generateSeedConfig, generateSeedReadings } from "@/data/seed";
 import { configRepository, readingsRepository } from "@/data/repositories";
-import { AppDataContext } from "./AppDataContext";
-
-export interface AppDataContextValue {
-  config: AppConfig;
-  readings: MeterReading[];
-  periods: any[]; // Adjusted based on context, will check actual type if possible
-  completedPeriods: any[];
-  currentPeriod: any;
-  projection: any;
-  averages: { consumptionKwh: number; amountPaid: number };
-  addReading: (input: { consumptionReading: number; exportReading?: number }) => void;
-  updateConfig: (patch: Partial<AppConfig>) => void;
-  user: AuthUser | null;
-  isAuthenticated: boolean;
-}
-function AuthContextProvider({ children, value }: { children: React.ReactNode; value: AuthContextValue }) {
-  return <AuthContextProvider value={value}>{children}</AuthContextProvider>;
-}
-
-interface AuthUser {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-}
+import { AppDataContext, type AuthUser } from "./AppDataContext";
 
 interface LoadedData {
   config: AppConfig;
@@ -111,7 +87,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   }
   return (
     <AppDataContext.Provider value={{ config, readings, periods, completedPeriods, currentPeriod, projection, averages, addReading, updateConfig, user, isAuthenticated: !!user, setUser }}>
-      <AuthContextProvider value={{ isAuthenticated: !!user }}>{children}</AuthContextProvider>
+      {children}
     </AppDataContext.Provider>
   );
 }

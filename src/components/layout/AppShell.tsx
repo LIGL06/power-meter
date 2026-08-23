@@ -16,7 +16,6 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Toaster } from "@/components/ui/sonner";
 import { useAppData } from "@/state/useAppData";
-import { useAuthContext } from "@/state/AuthContext";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -25,7 +24,7 @@ const NAV_ITEMS = [
 ];
 
 function LogoutButton() {
-  const { isAuthenticated } = useAuthContext();
+  const { isAuthenticated } = useAppData();
 
   async function handleLogout() {
     if (isAuthenticated) {
@@ -83,7 +82,7 @@ export function AppShell() {
           <Separator orientation="vertical" className="h-5" />
           <div className="flex items-center gap-3">
             <h1 className="text-sm font-medium">{activeItem?.label ?? config.tariff.planName}</h1>
-            {user && <span className="text-xs text-muted-foreground">{user.name}</span>}
+            {user && <span className="text-xs text-muted-foreground">{user.firstName} {user.lastName}</span>}
           </div>
           <LogoutButton />
         </header>

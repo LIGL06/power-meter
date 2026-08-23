@@ -2,7 +2,6 @@ import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { useAppData } from "@/state/useAppData";
-import { useAuthContext } from "@/state/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
@@ -23,7 +22,7 @@ import {
 } from "./settingsSchema";
 
 function LogoutButton() {
-  const { isAuthenticated } = useAuthContext();
+  const { isAuthenticated } = useAppData();
 
   async function handleLogout() {
     if (isAuthenticated) {
@@ -55,9 +54,14 @@ function ProfileTab() {
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="flex max-w-md flex-col gap-4">
       <Field>
-        <FieldLabel htmlFor="name">Name</FieldLabel>
-        <Input id="name" {...register("name")} aria-invalid={!!errors.name} />
-        <FieldError errors={errors.name ? [errors.name] : undefined} />
+        <FieldLabel htmlFor="firstName">First name</FieldLabel>
+        <Input id="firstName" {...register("firstName")} aria-invalid={!!errors.firstName} />
+        <FieldError errors={errors.firstName ? [errors.firstName] : undefined} />
+      </Field>
+      <Field>
+        <FieldLabel htmlFor="lastName">Last name</FieldLabel>
+        <Input id="lastName" {...register("lastName")} aria-invalid={!!errors.lastName} />
+        <FieldError errors={errors.lastName ? [errors.lastName] : undefined} />
       </Field>
       <Field>
         <FieldLabel htmlFor="address">Address</FieldLabel>
@@ -233,7 +237,7 @@ export function SettingsPage() {
         <CardTitle>Settings</CardTitle>
         <CardDescription>Profile, rate plan, solar export, and billing period.</CardDescription>
         {user && (
-          <div className="text-sm text-muted-foreground">{user.name} - {user.email}</div>
+          <div className="text-sm text-muted-foreground">{user.firstName} {user.lastName} - {user.email}</div>
         )}
       </CardHeader>
       <CardContent>

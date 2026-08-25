@@ -39,18 +39,20 @@ export function addDays(date: ISODate, n: number): ISODate {
 }
 
 /**
- * Today's local calendar date at local noon, converted to an ISO instant —
- * preserves "one reading per day" against the API's unique (contract, readAt)
- * index without colliding at a UTC day boundary and without a time picker.
- * Before noon has actually happened today, that instant is still in the
- * future — the API rejects a future `readAt` outright — so this clamps to
- * the current instant instead. The calendar date (what the app's "is there
- * already a reading today" check keys off) is unaffected either way.
+ * Local noon on the given calendar date (today, if omitted), converted to an
+ * ISO instant — preserves "one reading per day" against the API's unique
+ * (contract, readAt) index without colliding at a UTC day boundary and
+ * without a time picker. For today specifically, before noon has actually
+ * happened that instant is still in the future — the API rejects a future
+ * `readAt` outright — so this clamps to the current instant instead (a past
+ * date's noon is never in the future, so it's never clamped). The calendar
+ * date (what the app's "is there already a reading on this day" check keys
+ * off) is unaffected either way.
  */
-export function localNoonISOInstant(): string {
+export function localNoonISOInstant(date: ISODate = todayISO()): string {
+  const { year, month, day } = parseISODate(date);
+  const noon = new Date(year, month - 1, day, 12, 0, 0, 0);
   const now = new Date();
-  const noon = new Date(now);
-  noon.setHours(12, 0, 0, 0);
   return (noon > now ? now : noon).toISOString();
 }
 

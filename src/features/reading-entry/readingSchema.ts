@@ -4,7 +4,9 @@ import { isMonotonicOrEqual } from "@/domain/validation";
 /**
  * Built fresh per-render from the currently known latest values, so the
  * "reading can only go up" rule always checks against live data rather than
- * a rule baked in at import time.
+ * a rule baked in at import time. The target date lives outside this schema
+ * (see ReadingEntryPage) — the monotonic baseline it implies is folded in
+ * via `latestImportIndex`/`latestExportIndex` before this is called.
  */
 export function createReadingSchema(
   latestImportIndex: number | undefined,

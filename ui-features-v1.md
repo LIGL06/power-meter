@@ -39,14 +39,15 @@ Both pieces verified live: registered a fresh user, confirmed the relabeled inde
    - Add a "Use today" quick-reset affordance next to the date field for the safe default path.
 2. **Active-contract bootstrap fix** (`src/state/AppDataProvider.tsx`): change `setContract(res.items[0] ?? null)` to select the first item where `isActive`, so a future deactivated contract (Phase 4) can never be silently treated as the live one. This is a pure bugfix, independent of the guidance work above, bundled here because it's small and because Phase 4's deactivate feature depends on it being correct first.
 
-## Phase 2: Reading backfill
+## Phase 2: Reading backfill ✅ COMPLETED
 Append-only, per architecture decision #1 above.
 
-1. **`ReadingEntryPage` gets a date field** (`src/features/reading-entry/`): a native `type="date"` input, defaulting to today, with `min` = the day after the latest existing reading's calendar date (or the period's `startDate` if there are no readings yet) and `max` = today. Reuses `domain/date-utils.ts`'s existing `addDays`/`todayISO`/`localDateOf` helpers for the bounds.
-2. **Generalize "is this an edit or a new entry" beyond "today."** Today: `isUpdatingToday` compares the latest reading's date to `today`. New: compare the latest reading's date to the *selected* date — if they match (and the period matches, per the existing Phase 3 fix), it's an update; otherwise, a create with `readAt` = local noon on the selected date (reusing `localNoonISOInstant`'s clamp logic, generalized to take an arbitrary target date rather than always "now").
-3. **`readingSchema.ts`**: add a client-side date-range check mirroring the server's `assertReadAtIsSane` (not in the future, not before the period start) as a fast-fail, server remaining the final authority — consistent with the existing pattern from Phase 5's period-start pre-check.
-4. **Copy**: "Log today's reading" → "Log a reading," with the card's date line reflecting whichever date is selected instead of always "today."
-5. **Explicitly out of scope for v1**: inserting a reading *between* two existing ones (see architecture decision #1) — the date picker's `min` bound prevents this by construction, so no extra guard is needed beyond getting that bound right.
+1. **`ReadingEntryPage` gets a date field** (`src/features/reading-entry/`): a native `type="date"` input, defaulting to today, kept as plain `useState` outside react-hook-form (the schema's monotonic baseline depends on which reading is targeted, which depends on the selected date — routing that through `watch()` would create a circular dependency on the form itself). `min` = the latest existing reading's own calendar date (selecting it switches into editing that reading) or the period's `startDate` if there are no readings yet; `max` = today.
+2. **Generalized "is this an edit or a new entry" beyond "today."** `isEditTargetDate(date)` compares the latest reading's date to whichever date is selected (period match check carried over unchanged) — today's original behavior is just the case where the selected date defaults to today. A non-matching date creates, with `readAt` = local noon on the *selected* date (`localNoonISOInstant` generalized to take an optional target date, defaulting to today).
+3. **A real client-side guard, not just the native `min`/`max`.** Found live: the browser happily accepts an out-of-range date set programmatically (and can via manual keyboard entry too, depending on browser) — `min`/`max` only constrain the picker UI. This one is load-bearing, not cosmetic: `ReadingsService.create()` never recomputes a *later* reading's delta, so an inserted-between submission wouldn't error, it would silently leave the next reading's stored consumption wrong (architecture decision #1). Added `isDateOutOfRange` derived state that disables the submit button, shows an inline error, and is re-checked as the first line of `onSubmit` itself (a disabled button doesn't reliably block Enter-key submission in every browser).
+4. **Copy**: "Log today's reading" → "Log a reading," with the card's date line and field hint reflecting whichever date is selected ("Today" / "Filling in a day you missed" / "Already logged for this date — editing it below.").
+
+**Verified live**: registered a fresh contract with the anchor backdated 5 days, then from `ReadingEntryPage` — backfilled a reading 3 days into the period (billing correctly recalculated days-elapsed and daily average from it), confirmed the date bounds tightened to the new latest reading, confirmed re-selecting that date switched the form into edit mode automatically, and confirmed attempting a date one day *before* the new minimum (bypassing the native picker via direct value assignment, exactly the gap found) was correctly blocked with the button disabled and an explanatory error — the scenario item 3 above exists to prevent. Logging today's reading afterward worked normally, flipping into "editing it below" exactly as the original single-day version did. `tsc`/`eslint`/`vite build` all green (lint still at 6, unchanged).
 
 ## Phase 3: Admin "no meter" experience — confirmed: land on `/admin/tariffs`, with an empty state there
 1. **`App.tsx`**: the root route group's `!contract` branch currently always `<Navigate to="/onboarding" />`. Change to: still redirect a normal user there; for `role === 'ADMIN'`, redirect to `/admin/tariffs` instead — that becomes the admin's default home whenever they have no personal meter.
@@ -155,7 +156,7 @@ offsetPercent(panels)      = dailyGenerationKwh(panels) / dailyConsumptionKwh ×
 
 ## Milestones
 - [x] Milestone 1: Onboarding guidance + active-contract bootstrap fix (Phase 1)
-- [ ] Milestone 2: Reading backfill (Phase 2)
+- [x] Milestone 2: Reading backfill (Phase 2)
 - [ ] Milestone 3: Admin no-meter experience (Phase 3)
 - [ ] Milestone 4: Profile, reading history, period detail, contract detail (Phase 4)
 - [ ] Milestone 5: Historical periods — API + UI (Phase 5)

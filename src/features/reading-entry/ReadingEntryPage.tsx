@@ -25,6 +25,12 @@ export function ReadingEntryPage() {
   const [isClosing, setIsClosing] = useState(false);
   const today = todayISO();
 
+  // The target date lives outside react-hook-form: whether it's editing an existing
+  // reading or creating a new one changes which zod schema applies (different monotonic
+  // baseline), and that schema has to be known before the form can be constructed —
+  // keeping the date as plain state sidesteps that ordering problem entirely.
+  const [selectedDate, setSelectedDate] = useState(today);
+
   const fetchLatestReadings = useCallback(async () => {
     if (!contract) return;
     const res = await readingsRepository.list(contract.id, { limit: 2 });
@@ -43,13 +49,29 @@ export function ReadingEntryPage() {
     };
   }, [contract, fetchLatestReadings]);
 
-  // Editing today's already-submitted reading validates against the day before it, not itself.
-  // Also requires the reading's own period to still be the open one — closing a period early
-  // on the same day a reading was posted leaves a "today" reading that belongs to a now-closed
-  // period, which the API refuses to edit; that case must fall through to a fresh create instead.
-  const isUpdatingToday =
-    !!latest && localDateOf(latest.readAt) === today && (!estimate || latest.billingPeriodId === estimate.period.id);
-  const baseline = isUpdatingToday ? prior : latest;
+  // A picked date matching the latest reading's own date means "edit that reading,"
+  // validated against the day before it (prior) rather than itself — also requires the
+  // reading's own period to still be the open one, since closing a period early on the
+  // same day a reading was posted leaves it belonging to a now-closed period, which the
+  // API refuses to edit; that case must fall through to a fresh create instead.
+  function isEditTargetDate(date: string): boolean {
+    return !!latest && date === localDateOf(latest.readAt) && (!estimate || latest.billingPeriodId === estimate.period.id);
+  }
+  const isEditingSelected = isEditTargetDate(selectedDate);
+  const baseline = isEditingSelected ? prior : latest;
+
+  // Backfill is append-only (ui-features-v1.md architecture decision #1): the earliest
+  // selectable date is the latest existing reading's own date (selecting it edits that
+  // reading), or the period's start if there are no readings yet at all — never earlier,
+  // which would mean inserting between two existing readings rather than appending.
+  const minDate = latest ? localDateOf(latest.readAt) : (estimate?.period.startDate.slice(0, 10) ?? today);
+  // The native <input min/max> only constrains the picker UI, not a typed or
+  // programmatically-set value (confirmed live) — and this one is load-bearing, not just
+  // a UX nicety: the API's create endpoint never re-derives a *later* reading's delta the
+  // way an edit does, so an out-of-range submission wouldn't cleanly error, it would
+  // silently leave the next reading's stored consumption wrong. Blocking submission here
+  // is the only thing actually preventing that.
+  const isDateOutOfRange = selectedDate < minDate || selectedDate > today;
 
   const schema = useMemo(
     () => createReadingSchema(baseline?.importIndex, baseline?.exportIndex ?? undefined, contract?.hasExports ?? false),
@@ -64,26 +86,26 @@ export function ReadingEntryPage() {
   } = useForm<ReadingFormValues>({ resolver: zodResolver(schema) });
 
   // RHF captures defaultValues once at mount; since the latest reading loads
-  // asynchronously (and changes after every mutation), the form is explicitly
-  // re-synced here instead.
+  // asynchronously (and changes after every mutation, or as the selected date moves
+  // into/out of editing an existing reading), the form is explicitly re-synced here.
   useEffect(() => {
     if (!readingsReady) return;
     reset({
-      importIndex: isUpdatingToday ? latest?.importIndex : undefined,
-      exportIndex: isUpdatingToday ? (latest?.exportIndex ?? undefined) : undefined,
+      importIndex: isEditingSelected ? latest?.importIndex : undefined,
+      exportIndex: isEditingSelected ? (latest?.exportIndex ?? undefined) : undefined,
     });
-  }, [readingsReady, isUpdatingToday, latest, reset]);
+  }, [readingsReady, isEditingSelected, latest, reset]);
 
   async function onSubmit(values: ReadingFormValues) {
-    if (!contract) return;
+    if (!contract || isDateOutOfRange) return;
     try {
-      if (isUpdatingToday && latest) {
+      if (isEditingSelected && latest) {
         await readingsRepository.update(latest.id, {
           importIndex: values.importIndex,
           exportIndex: contract.hasExports ? values.exportIndex : undefined,
         });
       } else {
-        const readAt = localNoonISOInstant();
+        const readAt = localNoonISOInstant(selectedDate);
         // Fast-fail mirror of the server's own check — the server remains the final authority.
         if (estimate && new Date(readAt) < new Date(estimate.period.startDate)) {
           toast.error("This reading's date falls before the current billing period started.");
@@ -135,14 +157,48 @@ export function ReadingEntryPage() {
     <div className="flex max-w-md flex-col gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>Log today's reading</CardTitle>
+          <CardTitle>Log a reading</CardTitle>
           <CardDescription>
-            {formatShortDate(today)}
+            {formatShortDate(selectedDate)}
             {baseline && ` — last logged ${formatShortDate(baseline.readAt)}`}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+            <Field>
+              <FieldLabel htmlFor="date">Date</FieldLabel>
+              <Input
+                id="date"
+                type="date"
+                min={minDate}
+                max={today}
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+              />
+              {isDateOutOfRange ? (
+                <FieldError
+                  errors={[
+                    {
+                      message:
+                        selectedDate > today
+                          ? "Can't be in the future."
+                          : `Can't be before ${formatShortDate(minDate)} — that would fall between two readings you've already logged.`,
+                    },
+                  ]}
+                />
+              ) : (
+                <FieldDescription>
+                  {isEditingSelected
+                    ? selectedDate === today
+                      ? "Today — already logged, editing it below."
+                      : "Already logged for this date — editing it below."
+                    : selectedDate === today
+                      ? "Today"
+                      : "Filling in a day you missed"}
+                </FieldDescription>
+              )}
+            </Field>
+
             <Field>
               <FieldLabel htmlFor="importIndex">Meter reading (kWh)</FieldLabel>
               <Input
@@ -171,8 +227,8 @@ export function ReadingEntryPage() {
               </Field>
             )}
 
-            <Button type="submit" disabled={isSubmitting} className="w-fit">
-              {isUpdatingToday ? "Update today's reading" : "Save reading"}
+            <Button type="submit" disabled={isSubmitting || isDateOutOfRange} className="w-fit">
+              {isEditingSelected ? "Update reading" : "Save reading"}
             </Button>
           </form>
         </CardContent>

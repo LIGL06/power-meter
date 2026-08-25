@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import defaultApi, { setTokens } from "@/lib/api";
+import defaultApi, { getErrorMessage, setTokens } from "@/lib/api";
 import { useAppData } from "@/state/useAppData";
 
 export function RegisterPage() {
@@ -24,8 +24,8 @@ export function RegisterPage() {
       setUser(response.user);
       navigate("/");
       toast.success("Account created successfully!");
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Registration failed");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
     } finally {
       setIsLoading(false);
     }

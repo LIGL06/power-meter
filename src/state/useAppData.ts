@@ -1,25 +1,10 @@
 import { useContext } from "react";
-import { AppDataContext, type AppDataAverages, type AuthUser } from "./AppDataContext";
-import type { AppConfig, MeterReading, BillingPeriod, PeriodProjection } from "@/domain/types";
+import { AppDataContext, type AppDataContextValue } from "./AppDataContext";
 
-export interface AppDataResult {
-  config: AppConfig;
-  readings: MeterReading[];
-  periods: BillingPeriod[];
-  completedPeriods: BillingPeriod[];
-  currentPeriod: BillingPeriod | undefined;
-  projection: PeriodProjection | null;
-  averages: AppDataAverages;
-  addReading: (input: { consumptionReading: number; exportReading?: number }) => void;
-  updateConfig: (patch: Partial<AppConfig>) => void;
-  setUser: (user: AuthUser | null) => void;
-  user: AuthUser | null;
-  isAuthenticated: boolean;
-  authReady: boolean;
-}
+export type AppDataResult = AppDataContextValue;
 
 export function useAppData(): AppDataResult {
   const ctx = useContext(AppDataContext);
   if (!ctx) throw new Error("useAppData must be used within an AppDataProvider");
-  return ctx as AppDataResult;
+  return ctx;
 }

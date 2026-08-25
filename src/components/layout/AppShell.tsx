@@ -1,4 +1,4 @@
-import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import { Gauge, LayoutDashboard, Settings, Zap } from "lucide-react";
 import {
   Sidebar,
@@ -14,9 +14,8 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-import { Toaster } from "@/components/ui/sonner";
 import { useAppData } from "@/state/useAppData";
-import { logout as logoutRequest, clearTokens } from "@/lib/api";
+import { useLogout } from "@/state/useLogout";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -25,23 +24,8 @@ const NAV_ITEMS = [
 ];
 
 function LogoutButton() {
-  const { isAuthenticated, setUser } = useAppData();
-  const navigate = useNavigate();
-
-  async function handleLogout() {
-    if (!isAuthenticated) return;
-    try {
-      await logoutRequest();
-    } catch (error) {
-      console.error("Logout request failed", error);
-    } finally {
-      clearTokens();
-      setUser(null);
-      navigate("/login");
-    }
-  }
-
-  return <button onClick={handleLogout} className="px-2 py-1 text-sm hover:underline">Log out</button>;
+  const logout = useLogout();
+  return <button onClick={logout} className="px-2 py-1 text-sm hover:underline">Log out</button>;
 }
 
 export function AppShell() {
@@ -93,7 +77,6 @@ export function AppShell() {
           <Outlet />
         </div>
       </SidebarInset>
-      <Toaster />
     </SidebarProvider>
   );
 }

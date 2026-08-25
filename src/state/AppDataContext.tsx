@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import type { AppConfig, BillingPeriod, MeterReading, PeriodProjection } from "@/domain/types";
+import type { AppConfig, BillingPeriod, Contract, MeterReading, PeriodProjection } from "@/domain/types";
 
 export interface AppDataAverages {
   consumptionKwh: number | null;
@@ -11,6 +11,7 @@ export interface AuthUser {
   email: string;
   firstName: string;
   lastName: string;
+  role: "ADMIN" | "USER";
 }
 
 export interface AppDataContextValue {
@@ -28,6 +29,10 @@ export interface AppDataContextValue {
    isAuthenticated: boolean;
    /** False until the initial session check (rehydrating `user` from a stored token) has resolved. */
    authReady: boolean;
+   contract: Contract | null;
+   setContract: (contract: Contract | null) => void;
+   /** False until the post-login contract lookup (`GET /contracts`) has resolved. */
+   contractReady: boolean;
 }
 
 export const AppDataContext = createContext<AppDataContextValue | null>(null);

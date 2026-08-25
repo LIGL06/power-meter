@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
-import type { AppConfig, MeterReading } from "@/domain/types";
+import type { AppConfig, Contract, MeterReading } from "@/domain/types";
 import { todayISO } from "@/domain/date-utils";
 import {
   buildBillingPeriods,
@@ -10,6 +10,7 @@ import {
 import { averageAmountPaid, averageConsumption } from "@/domain/statistics";
 import { generateSeedConfig, generateSeedReadings } from "@/data/seed";
 import { configRepository, readingsRepository } from "@/data/repositories";
+import { contractRepository } from "@/data/repositories/api";
 import { getAccessToken, getProfile, clearTokens } from "@/lib/api";
 import { AppDataContext, type AuthUser } from "./AppDataContext";
 
@@ -37,6 +38,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   // Lazy initializer avoids an empty-then-populated first paint.
   const [{ config, readings, user }, setState] = useState<LoadedData>(loadOrSeed);
   const [authReady, setAuthReady] = useState(false);
+  const [contract, setContract] = useState<Contract | null>(null);
+  const [contractReady, setContractReady] = useState(false);
 
   // Rehydrates the session from a stored access token so a page refresh doesn't drop the user.
   useEffect(() => {
@@ -49,6 +52,30 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       .catch(() => clearTokens())
       .finally(() => setAuthReady(true));
   }, []);
+
+  // Once a session is confirmed, look up the user's most-recently-created contract
+  // (GET /contracts already sorts newest-first server-side). No contracts yet routes
+  // to onboarding; this effect only ever needs to run once per login.
+  useEffect(() => {
+    if (!authReady) return;
+    if (!user) {
+      setContract(null);
+      setContractReady(false);
+      return;
+    }
+    let cancelled = false;
+    contractRepository
+      .list()
+      .then((res) => {
+        if (!cancelled) setContract(res.items[0] ?? null);
+      })
+      .finally(() => {
+        if (!cancelled) setContractReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authReady, user]);
 
   const asOfDate = todayISO();
 
@@ -100,7 +127,26 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     setState((prev) => ({ ...prev, user }));
   }
   return (
-    <AppDataContext.Provider value={{ config, readings, periods, completedPeriods, currentPeriod, projection, averages, addReading, updateConfig, user, isAuthenticated: !!user, setUser, authReady }}>
+    <AppDataContext.Provider
+      value={{
+        config,
+        readings,
+        periods,
+        completedPeriods,
+        currentPeriod,
+        projection,
+        averages,
+        addReading,
+        updateConfig,
+        user,
+        isAuthenticated: !!user,
+        setUser,
+        authReady,
+        contract,
+        setContract,
+        contractReady,
+      }}
+    >
       {children}
     </AppDataContext.Provider>
   );

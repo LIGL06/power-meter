@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { Toaster, toast } from "sonner";
+import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { login, setTokens } from "@/lib/api";
+import { getErrorMessage, login, setTokens } from "@/lib/api";
 import { useAppData } from "@/state/useAppData";
 
 export function LoginPage() {
@@ -24,8 +24,8 @@ export function LoginPage() {
       setUser(response.user);
       navigate("/");
       toast.success("Welcome back!");
-    } catch (error: any) {
-      toast.error(error.response?.data?.message || "Login failed");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
@@ -33,7 +33,6 @@ export function LoginPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
-      <Toaster />
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle>Login</CardTitle>

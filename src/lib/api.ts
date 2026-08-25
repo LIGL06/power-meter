@@ -1,9 +1,15 @@
 import axios, { AxiosError, type AxiosResponse } from "axios";
+import type { AuthUser } from "@/state/AppDataContext";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:3000/api/v1";
 
 const ACCESS_TOKEN_KEY = "auth_token";
 const REFRESH_TOKEN_KEY = "refresh_token";
+
+// Endpoints that must never trigger a refresh-and-retry themselves — refreshing
+// on their own 401 would recurse. Every other /auth/* route (notably /auth/me,
+// used for session rehydration) is expected to go through the normal refresh path.
+const NO_REFRESH_ENDPOINTS = ["/auth/login", "/auth/register", "/auth/refresh"];
 
 export function getAccessToken(): string | null {
   return localStorage.getItem(ACCESS_TOKEN_KEY);
@@ -19,12 +25,7 @@ export function clearTokens(): void {
   localStorage.removeItem(REFRESH_TOKEN_KEY);
 }
 
-export interface AuthUser {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-}
+export type { AuthUser };
 
 export interface AuthTokens {
   accessToken: string;
@@ -42,7 +43,7 @@ export interface RegisterRequest {
 
 let httpClient: ReturnType<typeof axios.create> | null = null;
 
-function getHttpClient() {
+export function getHttpClient() {
   if (!httpClient) {
     httpClient = axios.create({
       baseURL: API_BASE_URL,
@@ -67,9 +68,9 @@ function getHttpClient() {
       async (error: AxiosError) => {
         const status = error?.response?.status;
         const originalRequest = error.config as (typeof error.config & { _retried?: boolean }) | undefined;
-        const isAuthEndpoint = originalRequest?.url?.startsWith("/auth/");
+        const isNoRefreshEndpoint = NO_REFRESH_ENDPOINTS.some((path) => originalRequest?.url?.startsWith(path));
 
-        if (status === 401 && originalRequest && !originalRequest._retried && !isAuthEndpoint) {
+        if (status === 401 && originalRequest && !originalRequest._retried && !isNoRefreshEndpoint) {
           const refreshToken = localStorage.getItem(REFRESH_TOKEN_KEY);
           if (refreshToken) {
             originalRequest._retried = true;
@@ -95,7 +96,10 @@ function getHttpClient() {
           }
         }
 
-        if (status === 401 || status === 403) {
+        // 403 is a normal in-session authorization failure (wrong role, not the
+        // resource owner) once contract-scoped endpoints are in play — only a
+        // 401 with no valid refresh token means the session itself is gone.
+        if (status === 401) {
           clearTokens();
           window.location.href = "/login";
         }
@@ -132,3 +136,21 @@ export default {
   getProfile,
   logout,
 };
+
+interface ApiErrorPayload {
+  message?: string | string[];
+}
+
+/**
+ * The API's error envelope has `message` as a plain string for most exceptions
+ * but a string array for class-validator (400) failures — this normalizes both
+ * to one displayable string for toasts.
+ */
+export function getErrorMessage(error: unknown): string {
+  if (axios.isAxiosError<ApiErrorPayload>(error)) {
+    const message = error.response?.data?.message;
+    if (Array.isArray(message)) return message.join(", ");
+    if (typeof message === "string") return message;
+  }
+  return "Something went wrong. Please try again.";
+}

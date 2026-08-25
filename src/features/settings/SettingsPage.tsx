@@ -1,9 +1,8 @@
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
 import { useAppData } from "@/state/useAppData";
-import { logout as logoutRequest, clearTokens } from "@/lib/api";
+import { useLogout } from "@/state/useLogout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
@@ -24,23 +23,8 @@ import {
 } from "./settingsSchema";
 
 function LogoutButton() {
-  const { isAuthenticated, setUser } = useAppData();
-  const navigate = useNavigate();
-
-  async function handleLogout() {
-    if (!isAuthenticated) return;
-    try {
-      await logoutRequest();
-    } catch {
-      toast.error("Failed to reach the server; logging out locally");
-    } finally {
-      clearTokens();
-      setUser(null);
-      navigate("/login");
-    }
-  }
-
-  return <Button variant="outline" onClick={handleLogout} className="w-full">Log out</Button>;
+  const logout = useLogout();
+  return <Button variant="outline" onClick={logout} className="w-full">Log out</Button>;
 }
 
 function ProfileTab() {

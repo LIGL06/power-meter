@@ -38,7 +38,24 @@ export function addDays(date: ISODate, n: number): ISODate {
   return toISODate(d.getUTCFullYear(), d.getUTCMonth() + 1, d.getUTCDate());
 }
 
-/** Whole days from `a` to `b` (positive when `b` is after `a`). */
-export function diffInDays(a: ISODate, b: ISODate): number {
-  return epochDay(b) - epochDay(a);
+/**
+ * Today's local calendar date at local noon, converted to an ISO instant —
+ * preserves "one reading per day" against the API's unique (contract, readAt)
+ * index without colliding at a UTC day boundary and without a time picker.
+ * Before noon has actually happened today, that instant is still in the
+ * future — the API rejects a future `readAt` outright — so this clamps to
+ * the current instant instead. The calendar date (what the app's "is there
+ * already a reading today" check keys off) is unaffected either way.
+ */
+export function localNoonISOInstant(): string {
+  const now = new Date();
+  const noon = new Date(now);
+  noon.setHours(12, 0, 0, 0);
+  return (noon > now ? now : noon).toISOString();
+}
+
+/** Local calendar date of a full ISO instant (e.g. a `Reading.readAt` from the API). */
+export function localDateOf(isoInstant: string): ISODate {
+  const d = new Date(isoInstant);
+  return toISODate(d.getFullYear(), d.getMonth() + 1, d.getDate());
 }

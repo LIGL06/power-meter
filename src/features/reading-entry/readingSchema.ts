@@ -7,22 +7,22 @@ import { isMonotonicOrEqual } from "@/domain/validation";
  * a rule baked in at import time.
  */
 export function createReadingSchema(
-  latestConsumption: number | undefined,
-  latestExport: number | undefined,
-  solarEnabled: boolean,
+  latestImportIndex: number | undefined,
+  latestExportIndex: number | undefined,
+  hasExports: boolean,
 ) {
   return z.object({
-    consumptionReading: z.number().refine((value) => isMonotonicOrEqual(value, latestConsumption), {
+    importIndex: z.number().refine((value) => isMonotonicOrEqual(value, latestImportIndex), {
       message:
-        latestConsumption !== undefined
-          ? `Must be ${latestConsumption} or higher (your last reading)`
+        latestImportIndex !== undefined
+          ? `Must be ${latestImportIndex} or higher (your last reading)`
           : "Must be zero or higher",
     }),
-    exportReading: solarEnabled
-      ? z.number().refine((value) => isMonotonicOrEqual(value, latestExport), {
+    exportIndex: hasExports
+      ? z.number().refine((value) => isMonotonicOrEqual(value, latestExportIndex), {
           message:
-            latestExport !== undefined
-              ? `Must be ${latestExport} or higher (your last export reading)`
+            latestExportIndex !== undefined
+              ? `Must be ${latestExportIndex} or higher (your last export reading)`
               : "Must be zero or higher",
         })
       : z.number().optional(),

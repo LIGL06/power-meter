@@ -1,22 +1,13 @@
-import { useState, useMemo, useEffect } from "react";
-import type { AppConfig, Contract, MeterReading } from "@/domain/types";
-import { todayISO } from "@/domain/date-utils";
-import {
-  buildBillingPeriods,
-  getCompletedPeriods,
-  getCurrentPeriod,
-  projectCurrentPeriod,
-} from "@/domain/periods";
-import { averageAmountPaid, averageConsumption } from "@/domain/statistics";
-import { generateSeedConfig, generateSeedReadings } from "@/data/seed";
-import { configRepository, readingsRepository } from "@/data/repositories";
-import { contractRepository } from "@/data/repositories/api";
+import { useState, useCallback, useEffect } from "react";
+import type { AppConfig, BillingPeriodDto, Contract, EstimateDto } from "@/domain/types";
+import { generateSeedConfig } from "@/data/seed";
+import { configRepository } from "@/data/repositories";
+import { contractRepository, billingRepository } from "@/data/repositories/api";
 import { getAccessToken, getProfile, clearTokens } from "@/lib/api";
 import { AppDataContext, type AuthUser } from "./AppDataContext";
 
 interface LoadedData {
   config: AppConfig;
-  readings: MeterReading[];
   user: AuthUser | null;
 }
 
@@ -24,22 +15,23 @@ interface LoadedData {
 function loadOrSeed(): LoadedData {
   const existingConfig = configRepository.getConfig();
   if (existingConfig) {
-    return { config: existingConfig, readings: readingsRepository.getAll(), user: null };
+    return { config: existingConfig, user: null };
   }
 
   const seedConfig = generateSeedConfig();
-  const seedReadings = generateSeedReadings(seedConfig.billingAnchorDate);
   configRepository.saveConfig(seedConfig);
-  readingsRepository.saveAll(seedReadings);
-  return { config: seedConfig, readings: seedReadings, user: null };
+  return { config: seedConfig, user: null };
 }
 
 export function AppDataProvider({ children }: { children: React.ReactNode }) {
   // Lazy initializer avoids an empty-then-populated first paint.
-  const [{ config, readings, user }, setState] = useState<LoadedData>(loadOrSeed);
+  const [{ config, user }, setState] = useState<LoadedData>(loadOrSeed);
   const [authReady, setAuthReady] = useState(false);
   const [contract, setContract] = useState<Contract | null>(null);
   const [contractReady, setContractReady] = useState(false);
+  const [estimate, setEstimate] = useState<EstimateDto | null>(null);
+  const [billingPeriods, setBillingPeriods] = useState<BillingPeriodDto[]>([]);
+  const [billingReady, setBillingReady] = useState(false);
 
   // Rehydrates the session from a stored access token so a page refresh doesn't drop the user.
   useEffect(() => {
@@ -77,45 +69,45 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     };
   }, [authReady, user]);
 
-  const asOfDate = todayISO();
+  const fetchBilling = useCallback(async (contractId: string) => {
+    const [nextEstimate, nextPeriods] = await Promise.all([
+      billingRepository.estimate(contractId),
+      billingRepository.periods(contractId),
+    ]);
+    setEstimate(nextEstimate);
+    setBillingPeriods(nextPeriods);
+  }, []);
 
-  const periods = useMemo(
-    () =>
-      buildBillingPeriods(
-        readings,
-        config.billingAnchorDate,
-        config.billingPeriodDays,
-        config.tariff,
-        config.solar,
-        asOfDate,
-      ),
-    [readings, config.billingAnchorDate, config.billingPeriodDays, config.tariff, config.solar, asOfDate],
-  );
+  // Mirrors the contract effect above, one link further down the chain: fires once a
+  // contract is confirmed. A later refetchBilling() call (after posting a reading, or
+  // closing a period) updates this state in place without re-flipping billingReady.
+  useEffect(() => {
+    if (!contractReady) return;
+    if (!contract) {
+      setEstimate(null);
+      setBillingPeriods([]);
+      setBillingReady(false);
+      return;
+    }
+    let cancelled = false;
+    fetchBilling(contract.id)
+      .catch((error) => console.error("Failed to load billing data", error))
+      .finally(() => {
+        if (!cancelled) setBillingReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [contractReady, contract, fetchBilling]);
 
-  const currentPeriod = useMemo(() => getCurrentPeriod(periods), [periods]);
-  const completedPeriods = useMemo(() => getCompletedPeriods(periods), [periods]);
-
-  const projection = useMemo(
-    () =>
-      currentPeriod
-        ? projectCurrentPeriod(currentPeriod, config.billingPeriodDays, config.tariff, config.solar)
-        : null,
-    [currentPeriod, config.billingPeriodDays, config.tariff, config.solar],
-  );
-
-  const averages = useMemo(
-    () => ({
-      consumptionKwh: averageConsumption(completedPeriods, 3),
-      amountPaid: averageAmountPaid(completedPeriods, 3),
-    }),
-    [completedPeriods],
-  );
-
-  function addReading(input: { consumptionReading: number; exportReading?: number }) {
-    const today = todayISO();
-    const nextReadings = readingsRepository.upsertReading({ id: today, date: today, ...input });
-    setState((prev) => ({ ...prev, readings: nextReadings }));
-  }
+  const refetchBilling = useCallback(async () => {
+    if (!contract) return;
+    try {
+      await fetchBilling(contract.id);
+    } catch (error) {
+      console.error("Failed to refresh billing data", error);
+    }
+  }, [contract, fetchBilling]);
 
   function updateConfig(patch: Partial<AppConfig>) {
     const nextConfig = { ...config, ...patch };
@@ -126,17 +118,11 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   function setUser(user: AuthUser | null) {
     setState((prev) => ({ ...prev, user }));
   }
+
   return (
     <AppDataContext.Provider
       value={{
         config,
-        readings,
-        periods,
-        completedPeriods,
-        currentPeriod,
-        projection,
-        averages,
-        addReading,
         updateConfig,
         user,
         isAuthenticated: !!user,
@@ -145,6 +131,10 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         contract,
         setContract,
         contractReady,
+        estimate,
+        billingPeriods,
+        billingReady,
+        refetchBilling,
       }}
     >
       {children}

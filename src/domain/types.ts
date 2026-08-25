@@ -42,49 +42,6 @@ export interface AppConfig {
   billingAnchorDate: ISODate;
 }
 
-/** A single day's cumulative meter reading. One per calendar day (upserted by date). */
-export interface MeterReading {
-  id: string;
-  date: ISODate;
-  consumptionReading: number;
-  exportReading?: number;
-}
-
-export interface BillBreakdown {
-  consumptionKwh: number;
-  exportKwh: number;
-  consumptionCost: number;
-  fixedServiceCharge: number;
-  exportCredit: number;
-  subtotalBeforeTax: number;
-  tax: number;
-  totalAmount: number;
-}
-
-export interface BillingPeriod {
-  index: number;
-  startDate: ISODate;
-  endDate: ISODate;
-  /** False only for the current, still-running period. */
-  isComplete: boolean;
-  /** False only when no reading exists before this period's start (always false for period 0). */
-  hasBaseline: boolean;
-  consumptionKwh: number | null;
-  exportKwh: number | null;
-  bill: BillBreakdown | null;
-  /** Date of the latest reading this period's figures are based on. */
-  asOfDate: ISODate | null;
-}
-
-export interface PeriodProjection {
-  period: BillingPeriod;
-  daysElapsed: number;
-  daysRemaining: number;
-  projectedConsumptionKwh: number;
-  projectedExportKwh: number;
-  projectedBill: BillBreakdown;
-}
-
 // ---------------------------------------------------------------------------
 // API types (power-meter-api). Mirror the server's DTOs field-for-field — see
 // api-implementation-v2.md's type-mapping table. Kept alongside the legacy

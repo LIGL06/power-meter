@@ -1,11 +1,11 @@
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
-import type { BillingPeriod } from "@/domain/types";
+import type { BillingPeriodDto } from "@/domain/types";
 import { formatShortDate } from "@/lib/format";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface ConsumptionCostChartProps {
-  periods: BillingPeriod[];
+  periods: BillingPeriodDto[];
 }
 
 const consumptionConfig = {
@@ -22,11 +22,17 @@ const costConfig = {
  * correlation between two unrelated units that isn't actually in the data.
  */
 export function ConsumptionCostChart({ periods }: ConsumptionCostChartProps) {
-  const data = periods.map((period) => ({
-    label: formatShortDate(period.startDate),
-    kwh: period.consumptionKwh ?? 0,
-    paid: period.bill?.totalAmount ?? 0,
-  }));
+  const data = periods
+    .filter((period) => period.status === "CLOSED" && period.totals)
+    .reverse() // API returns newest-first; the chart wants chronological order.
+    .map((period) => ({
+      // startDate is a calendar-day boundary (always UTC midnight), not a moment in
+      // time — read its UTC date directly rather than reinterpreting it in the
+      // viewer's local timezone, which can shift it a day either direction.
+      label: formatShortDate(period.startDate.slice(0, 10)),
+      kwh: period.totals!.importedKwh,
+      paid: period.totals!.total,
+    }));
 
   if (data.length === 0) {
     return (

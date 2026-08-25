@@ -1,10 +1,5 @@
 import { createContext } from "react";
-import type { AppConfig, BillingPeriod, Contract, MeterReading, PeriodProjection } from "@/domain/types";
-
-export interface AppDataAverages {
-  consumptionKwh: number | null;
-  amountPaid: number | null;
-}
+import type { AppConfig, BillingPeriodDto, Contract, EstimateDto } from "@/domain/types";
 
 export interface AuthUser {
   id: string;
@@ -16,23 +11,21 @@ export interface AuthUser {
 
 export interface AppDataContextValue {
   config: AppConfig;
-  readings: MeterReading[];
-  periods: BillingPeriod[];
-  completedPeriods: BillingPeriod[];
-  currentPeriod: BillingPeriod | undefined;
-  projection: PeriodProjection | null;
-  averages: AppDataAverages;
-   addReading: (input: { consumptionReading: number; exportReading?: number }) => void;
-   updateConfig: (patch: Partial<AppConfig>) => void;
-   setUser: (user: AuthUser | null) => void;
-   user: AuthUser | null;
-   isAuthenticated: boolean;
-   /** False until the initial session check (rehydrating `user` from a stored token) has resolved. */
-   authReady: boolean;
-   contract: Contract | null;
-   setContract: (contract: Contract | null) => void;
-   /** False until the post-login contract lookup (`GET /contracts`) has resolved. */
-   contractReady: boolean;
+  updateConfig: (patch: Partial<AppConfig>) => void;
+  setUser: (user: AuthUser | null) => void;
+  user: AuthUser | null;
+  isAuthenticated: boolean;
+  /** False until the initial session check (rehydrating `user` from a stored token) has resolved. */
+  authReady: boolean;
+  contract: Contract | null;
+  setContract: (contract: Contract | null) => void;
+  /** False until the post-login contract lookup (`GET /contracts`) has resolved. */
+  contractReady: boolean;
+  estimate: EstimateDto | null;
+  billingPeriods: BillingPeriodDto[];
+  /** False until the initial post-contract billing fetch has resolved. */
+  billingReady: boolean;
+  refetchBilling: () => Promise<void>;
 }
 
 export const AppDataContext = createContext<AppDataContextValue | null>(null);

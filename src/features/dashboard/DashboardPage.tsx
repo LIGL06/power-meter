@@ -2,11 +2,12 @@ import { useMemo } from "react";
 import { useAppData } from "@/state/useAppData";
 import { formatCurrency, formatKwh } from "@/lib/format";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ServerUnreachable } from "@/components/ServerUnreachable";
 import { StatCard } from "./components/StatCard";
 import { ConsumptionCostChart } from "./components/ConsumptionCostChart";
 
 export function DashboardPage() {
-  const { estimate, billingPeriods, billingReady } = useAppData();
+  const { estimate, billingPeriods, billingReady, serverUnreachable, retryConnection } = useAppData();
 
   const last3Closed = useMemo(
     () => billingPeriods.filter((p) => p.status === "CLOSED" && p.totals).slice(0, 3),
@@ -23,6 +24,9 @@ export function DashboardPage() {
   const projected = estimate?.projected ?? estimate?.actual;
 
   if (!billingReady) {
+    if (serverUnreachable) {
+      return <ServerUnreachable onRetry={retryConnection} />;
+    }
     return (
       <div className="flex flex-col gap-6">
         <div className="grid gap-4 sm:grid-cols-3">

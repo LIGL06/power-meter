@@ -8,18 +8,31 @@ import { SettingsPage } from "@/features/settings/SettingsPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { RegisterPage } from "@/features/auth/RegisterPage";
 import { AddMeterPage } from "@/features/onboarding/AddMeterPage";
+import { AdminTariffsPage } from "@/features/admin/tariffs/AdminTariffsPage";
 import { Toaster } from "@/components/ui/sonner";
+import { ServerUnreachable } from "@/components/ServerUnreachable";
 
 function LoadingScreen() {
   return <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Loading…</div>;
 }
 
+function ConnectionGate({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center p-4">
+      <ServerUnreachable onRetry={onRetry} />
+    </div>
+  );
+}
+
 function AppRoutes() {
-  const { isAuthenticated, authReady, contract, contractReady } = useAppData();
+  const { isAuthenticated, authReady, contract, contractReady, user, serverUnreachable, retryConnection } =
+    useAppData();
 
   if (!authReady) {
     return <LoadingScreen />;
   }
+
+  const contractGate = serverUnreachable ? <ConnectionGate onRetry={retryConnection} /> : <LoadingScreen />;
 
   return (
     <Routes>
@@ -32,7 +45,7 @@ function AppRoutes() {
           !isAuthenticated ? (
             <Navigate to="/login" replace />
           ) : !contractReady ? (
-            <LoadingScreen />
+            contractGate
           ) : contract ? (
             <Navigate to="/" replace />
           ) : (
@@ -40,12 +53,30 @@ function AppRoutes() {
           )
         }
       />
+      {/* Admin-only surface — deliberately NOT gated on `contract`: an admin's job may be
+          purely managing the global tariff catalog, with no personal meter contract at all
+          (a real gap found live — a contract-less admin got stuck at /onboarding, unable
+          to ever reach this screen through the nav). */}
+      <Route
+        path="admin/tariffs"
+        element={
+          !isAuthenticated ? (
+            <Navigate to="/login" replace />
+          ) : user?.role !== "ADMIN" ? (
+            <Navigate to="/" replace />
+          ) : (
+            <AppShell />
+          )
+        }
+      >
+        <Route index element={<AdminTariffsPage />} />
+      </Route>
       <Route
         element={
           !isAuthenticated ? (
             <Navigate to="/login" replace />
           ) : !contractReady ? (
-            <LoadingScreen />
+            contractGate
           ) : !contract ? (
             <Navigate to="/onboarding" replace />
           ) : (

@@ -130,6 +130,19 @@ export async function logout() {
   return client.post<void>("/auth/logout");
 }
 
+export interface HealthStatus {
+  status: "ok" | "degraded";
+  database: "up" | "down";
+  uptime: number;
+  timestamp: string;
+}
+
+/** Public — no auth required. Backs the "can't reach the server" resilience state. */
+export async function checkHealth() {
+  const client = getHttpClient();
+  return client.get<HealthStatus>("/health");
+}
+
 export default {
   register,
   login,

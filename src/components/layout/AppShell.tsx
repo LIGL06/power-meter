@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { Gauge, LayoutDashboard, Settings, Zap } from "lucide-react";
+import { Gauge, LayoutDashboard, Settings, ShieldCheck, Zap } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -23,6 +23,8 @@ const NAV_ITEMS = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
+const ADMIN_NAV_ITEMS = [{ to: "/admin/tariffs", label: "Tariff Management", icon: ShieldCheck }];
+
 function LogoutButton() {
   const logout = useLogout();
   return <button onClick={logout} className="px-2 py-1 text-sm hover:underline">Log out</button>;
@@ -30,9 +32,10 @@ function LogoutButton() {
 
 export function AppShell() {
   const location = useLocation();
-  const { config, user } = useAppData();
+  const { user } = useAppData();
 
-  const activeItem = NAV_ITEMS.find((item) => item.to === location.pathname);
+  const navItems = user?.role === "ADMIN" ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
+  const activeItem = navItems.find((item) => item.to === location.pathname);
 
   return (
     <SidebarProvider>
@@ -47,7 +50,7 @@ export function AppShell() {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {NAV_ITEMS.map((item) => (
+                {navItems.map((item) => (
                   <SidebarMenuItem key={item.to}>
                     <SidebarMenuButton
                       render={<Link to={item.to} />}
@@ -68,7 +71,7 @@ export function AppShell() {
           <SidebarTrigger />
           <Separator orientation="vertical" className="h-5" />
           <div className="flex items-center gap-3">
-            <h1 className="text-sm font-medium">{activeItem?.label ?? config.tariff.planName}</h1>
+            <h1 className="text-sm font-medium">{activeItem?.label ?? "Power Meter"}</h1>
             {user && <span className="text-xs text-muted-foreground">{user.firstName} {user.lastName}</span>}
           </div>
           <LogoutButton />

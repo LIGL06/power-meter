@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -8,18 +9,23 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { getErrorMessage, login, setTokens } from "@/lib/api";
 import { useAppData } from "@/state/useAppData";
+import { loginSchema, type LoginFormValues } from "./authSchema";
 
 export function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { setUser } = useAppData();
 
-  const { register, handleSubmit, formState: { errors } } = useForm<any>();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginFormValues>({ resolver: zodResolver(loginSchema) });
 
-  async function onSubmit(data: any) {
+  async function onSubmit(data: LoginFormValues) {
     setIsLoading(true);
     try {
-      const response = await login(data.email, data.password).then(res => res.data);
+      const response = await login(data.email, data.password).then((res) => res.data);
       setTokens(response.accessToken, response.refreshToken);
       setUser(response.user);
       navigate("/");

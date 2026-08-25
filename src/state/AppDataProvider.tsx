@@ -3,7 +3,7 @@ import type { AppConfig, BillingPeriodDto, Contract, EstimateDto } from "@/domai
 import { generateSeedConfig } from "@/data/seed";
 import { configRepository } from "@/data/repositories";
 import { contractRepository, billingRepository } from "@/data/repositories/api";
-import { getAccessToken, getProfile, clearTokens } from "@/lib/api";
+import { getAccessToken, getProfile, clearTokens, checkHealth } from "@/lib/api";
 import { AppDataContext, type AuthUser } from "./AppDataContext";
 
 interface LoadedData {
@@ -23,6 +23,16 @@ function loadOrSeed(): LoadedData {
   return { config: seedConfig, user: null };
 }
 
+/** `GET /health` is `@Public()` — a clean, auth-independent signal that the backend itself is (un)reachable. */
+async function probeServerHealth(): Promise<boolean> {
+  try {
+    const res = await checkHealth();
+    return res.data.status === "ok";
+  } catch {
+    return false;
+  }
+}
+
 export function AppDataProvider({ children }: { children: React.ReactNode }) {
   // Lazy initializer avoids an empty-then-populated first paint.
   const [{ config, user }, setState] = useState<LoadedData>(loadOrSeed);
@@ -32,6 +42,10 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [estimate, setEstimate] = useState<EstimateDto | null>(null);
   const [billingPeriods, setBillingPeriods] = useState<BillingPeriodDto[]>([]);
   const [billingReady, setBillingReady] = useState(false);
+  const [serverUnreachable, setServerUnreachable] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
+
+  const retryConnection = useCallback(() => setRetryTick((t) => t + 1), []);
 
   // Rehydrates the session from a stored access token so a page refresh doesn't drop the user.
   useEffect(() => {
@@ -47,7 +61,14 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
 
   // Once a session is confirmed, look up the user's most-recently-created contract
   // (GET /contracts already sorts newest-first server-side). No contracts yet routes
-  // to onboarding; this effect only ever needs to run once per login.
+  // to onboarding. `ownerId` scopes this to the logged-in user even when they're an
+  // ADMIN — omitting it was a real bug found in testing: for an ADMIN, `GET /contracts`
+  // with no `ownerId` returns every user's contracts, and `items[0]` would silently
+  // pick up whichever contract was most recently created system-wide, attaching the
+  // admin's session to a random other user's meter. A failed fetch does NOT flip
+  // contractReady — that would otherwise misroute a "server unreachable" moment to
+  // onboarding as if the user had no contracts; it instead probes /health so the
+  // loading gate can distinguish "still loading" from "can't reach the server".
   useEffect(() => {
     if (!authReady) return;
     if (!user) {
@@ -57,17 +78,28 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     }
     let cancelled = false;
     contractRepository
-      .list()
+      .list({ ownerId: user.id })
       .then((res) => {
-        if (!cancelled) setContract(res.items[0] ?? null);
+        if (cancelled) return;
+        setContract(res.items[0] ?? null);
+        setContractReady(true);
+        setServerUnreachable(false);
       })
-      .finally(() => {
-        if (!cancelled) setContractReady(true);
+      .catch(async (error) => {
+        console.error("Failed to load contracts", error);
+        const healthy = await probeServerHealth();
+        if (cancelled) return;
+        if (healthy) {
+          // Reachable, but the request still failed for some other reason — don't get stuck.
+          setContractReady(true);
+        } else {
+          setServerUnreachable(true);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [authReady, user]);
+  }, [authReady, user, retryTick]);
 
   const fetchBilling = useCallback(async (contractId: string) => {
     const [nextEstimate, nextPeriods] = await Promise.all([
@@ -81,9 +113,13 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   // Mirrors the contract effect above, one link further down the chain: fires once a
   // contract is confirmed. A later refetchBilling() call (after posting a reading, or
   // closing a period) updates this state in place without re-flipping billingReady.
+  // Same "don't flip ready on a server-unreachable failure" rule as the contract effect.
+  // Resets on `!contractReady` too (not just `!contract`) — otherwise a logout, which
+  // flips contractReady back to false, leaves the previous user's estimate/periods
+  // sitting in state until the next contract's fetch resolves, briefly leaking one
+  // account's billing data into the next login on the same browser session.
   useEffect(() => {
-    if (!contractReady) return;
-    if (!contract) {
+    if (!contractReady || !contract) {
       setEstimate(null);
       setBillingPeriods([]);
       setBillingReady(false);
@@ -91,14 +127,25 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     }
     let cancelled = false;
     fetchBilling(contract.id)
-      .catch((error) => console.error("Failed to load billing data", error))
-      .finally(() => {
-        if (!cancelled) setBillingReady(true);
+      .then(() => {
+        if (cancelled) return;
+        setBillingReady(true);
+        setServerUnreachable(false);
+      })
+      .catch(async (error) => {
+        console.error("Failed to load billing data", error);
+        const healthy = await probeServerHealth();
+        if (cancelled) return;
+        if (healthy) {
+          setBillingReady(true);
+        } else {
+          setServerUnreachable(true);
+        }
       });
     return () => {
       cancelled = true;
     };
-  }, [contractReady, contract, fetchBilling]);
+  }, [contractReady, contract, fetchBilling, retryTick]);
 
   const refetchBilling = useCallback(async () => {
     if (!contract) return;
@@ -135,6 +182,8 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         billingPeriods,
         billingReady,
         refetchBilling,
+        serverUnreachable,
+        retryConnection,
       }}
     >
       {children}

@@ -26,6 +26,10 @@ export interface AppDataContextValue {
   /** False until the initial post-contract billing fetch has resolved. */
   billingReady: boolean;
   refetchBilling: () => Promise<void>;
+  /** True when the contract-bootstrap or billing fetch failed and `GET /health` confirms the server itself is unreachable — distinct from "not authenticated" or "no contract yet". */
+  serverUnreachable: boolean;
+  /** Re-runs whichever fetch is currently blocked (contract-bootstrap and/or billing). */
+  retryConnection: () => void;
 }
 
 export const AppDataContext = createContext<AppDataContextValue | null>(null);

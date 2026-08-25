@@ -1,28 +1,16 @@
 /** ISO calendar date, "YYYY-MM-DD", no time component and no timezone. */
 export type ISODate = string;
 
-export type BillingPeriodDays = 30 | 60;
-
 /**
  * A single price bracket in a tiered/block rate plan. `upToKwh` is the
  * cumulative consumption ceiling for this tier; exactly one tier in a
  * tariff's `tiers` array has `upToKwh: null` (unbounded) and it must be last.
+ * Shape-compatible with (but distinct from) the API's `TariffTier` — see
+ * `isValidTierStructure` for the shared ordering rule both use.
  */
 export interface Tier {
   upToKwh: number | null;
   ratePerKwh: number;
-}
-
-export interface TariffConfig {
-  planName: string;
-  tiers: Tier[];
-  fixedServiceCharge: number;
-  taxRatePercent: number;
-}
-
-export interface SolarConfig {
-  enabled: boolean;
-  exportCreditRatePerKwh: number;
 }
 
 /** Plain local fields — no real authentication anywhere in this app. */
@@ -33,13 +21,9 @@ export interface ProfileConfig {
   password: string;
 }
 
+/** The only Settings tab still backed by local storage — see api-implementation-v2.md Phase 4. */
 export interface AppConfig {
   profile: ProfileConfig;
-  tariff: TariffConfig;
-  solar: SolarConfig;
-  billingPeriodDays: BillingPeriodDays;
-  /** Start date of the first known billing cycle; all period boundaries are computed from this anchor. */
-  billingAnchorDate: ISODate;
 }
 
 // ---------------------------------------------------------------------------
@@ -287,4 +271,42 @@ export interface TariffDto {
   scrapedAt: ISODate | null;
   createdAt: ISODate;
   updatedAt: ISODate;
+}
+
+// ---------------------------------------------------------------------------
+// Admin-only tariff management (POST/PATCH /tariffs, POST /tariffs/import).
+// Mirrors CreateTariffDto/UpdateTariffDto/ImportTariffsDto in power-meter-api.
+// ---------------------------------------------------------------------------
+
+export interface CreateTariffDto {
+  code: string;
+  name: string;
+  category: TariffCategory;
+  currency?: string;
+  /** ISO instant. */
+  effectiveFrom: string;
+  /** ISO instant. */
+  effectiveTo?: string | null;
+  summerWindow: SeasonWindow;
+  seasons: TariffSeason[];
+  fixedCharge?: number;
+  minimumCharge?: number;
+  taxRate?: number;
+  dacThresholdKwh?: number | null;
+  source?: TariffSource;
+  sourceUrl?: string | null;
+  /** ISO instant. */
+  scrapedAt?: string | null;
+}
+
+/** `code` and `effectiveFrom` identify the version and are not patchable — publish a new version instead. */
+export type UpdateTariffDto = Partial<Omit<CreateTariffDto, "code" | "effectiveFrom">>;
+
+export interface ImportTariffsDto {
+  tariffs: CreateTariffDto[];
+}
+
+export interface ImportTariffsResult {
+  inserted: number;
+  skipped: number;
 }

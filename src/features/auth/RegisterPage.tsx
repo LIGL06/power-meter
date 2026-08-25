@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -8,18 +9,23 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import defaultApi, { getErrorMessage, setTokens } from "@/lib/api";
 import { useAppData } from "@/state/useAppData";
+import { registerSchema, type RegisterFormValues } from "./authSchema";
 
 export function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { setUser } = useAppData();
 
-  const { register, handleSubmit, formState: { errors } } = useForm<any>();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<RegisterFormValues>({ resolver: zodResolver(registerSchema) });
 
-  async function onSubmit({ firstName, lastName, email, password }: any) {
+  async function onSubmit({ firstName, lastName, email, password }: RegisterFormValues) {
     setIsLoading(true);
     try {
-      const response = await defaultApi.register({ firstName, lastName, email, password }).then(res => res.data);
+      const response = await defaultApi.register({ firstName, lastName, email, password }).then((res) => res.data);
       setTokens(response.accessToken, response.refreshToken);
       setUser(response.user);
       navigate("/");

@@ -4,7 +4,8 @@ import type { Contract, CreateContractDto, PaginatedResponse, UpdateContractDto 
 const client = getHttpClient();
 
 export const contractRepository = {
-  list(params?: { page?: number; limit?: number }) {
+  /** `ownerId` is an admin-only narrowing on the API — pass the current user's id here even for a non-admin so an ADMIN's own bootstrap fetch doesn't silently pick up every user's contracts. */
+  list(params?: { page?: number; limit?: number; ownerId?: string }) {
     return client.get<PaginatedResponse<Contract>>("/contracts", { params }).then((res) => res.data);
   },
 

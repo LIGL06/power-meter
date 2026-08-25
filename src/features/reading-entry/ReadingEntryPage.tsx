@@ -13,11 +13,12 @@ import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ServerUnreachable } from "@/components/ServerUnreachable";
 import { createReadingSchema, type ReadingFormValues } from "./readingSchema";
 import { ProjectionSummary } from "./components/ProjectionSummary";
 
 export function ReadingEntryPage() {
-  const { contract, estimate, billingReady, refetchBilling } = useAppData();
+  const { contract, estimate, billingReady, refetchBilling, serverUnreachable, retryConnection } = useAppData();
   const [latest, setLatest] = useState<Reading | undefined>(undefined);
   const [prior, setPrior] = useState<Reading | undefined>(undefined);
   const [readingsReady, setReadingsReady] = useState(false);
@@ -82,9 +83,15 @@ export function ReadingEntryPage() {
           exportIndex: contract.hasExports ? values.exportIndex : undefined,
         });
       } else {
+        const readAt = localNoonISOInstant();
+        // Fast-fail mirror of the server's own check — the server remains the final authority.
+        if (estimate && new Date(readAt) < new Date(estimate.period.startDate)) {
+          toast.error("This reading's date falls before the current billing period started.");
+          return;
+        }
         await readingsRepository.create(contract.id, {
           type: "PARTIAL",
-          readAt: localNoonISOInstant(),
+          readAt,
           importIndex: values.importIndex,
           exportIndex: contract.hasExports ? values.exportIndex : undefined,
         });
@@ -113,6 +120,9 @@ export function ReadingEntryPage() {
   if (!contract) return null;
 
   if (!readingsReady || !billingReady) {
+    if (serverUnreachable) {
+      return <ServerUnreachable onRetry={retryConnection} className="max-w-md" />;
+    }
     return (
       <div className="flex max-w-md flex-col gap-6">
         <Skeleton className="h-56 w-full" />

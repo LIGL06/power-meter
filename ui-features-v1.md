@@ -57,8 +57,10 @@ Append-only, per architecture decision #1 above.
 
 **Verified live**: found the seeded admin account had picked up a real contract (alias "HOME") since the last session — not something built for this pass, so temporarily deactivated it via the API to exercise the actual no-meter path, then reactivated it afterward to leave things as found. With it deactivated: navigating to `/` correctly redirected to `/admin/tariffs`, the nav sidebar showed only Settings and Tariff Management, the empty-state banner appeared, and "Register one" correctly opened `/onboarding`. Reactivating the contract afterward (via `PATCH .../isActive: true`) and reloading confirmed the app picks it back up normally — incidentally re-confirming Phase 1's active-contract fix in both directions. `tsc`/`eslint`/`vite build` all green (lint still at 6).
 
-## Phase 4: Account & history surfaces
+## Phase 4: Account & history surfaces ✅ COMPLETED
 The four post-Phase-5 audit gaps, each independent of the others.
+
+**Two more instances of a known bug class found live while building 4.3/4.4** (same root cause already documented and fixed once in Phase 3 of `api-implementation-v2.md`, for the dashboard chart): `formatShortDate` reinterprets a bare ISO instant in the *viewer's local timezone*, but `Contract.billingAnchorDate`, `BillingPeriodDto.startDate`/`expectedEndDate`/`actualEndDate`, `Segment.start`/`end`, and `TariffDto.effectiveFrom`/`effectiveTo` are all calendar-day boundaries stored as UTC midnight — reinterpreting them locally in a negative-UTC-offset timezone (Mexico's) shifts the displayed date a day earlier. Found on the new Meter tab ("Aug 19" for an anchor actually set to Aug 20) and would have shipped on the new Period Detail page too (period/segment date ranges) had the sweep not caught it — both fixed with the chart's existing `.slice(0, 10)` pattern. A repo-wide grep for every other `formatShortDate` call site turned up one more *pre-existing* instance never caught before: `AdminTariffsPage`'s version list (`effectiveFrom`/`effectiveTo`), fixed too since it's the identical one-line pattern.
 
 ### 4.1 Profile — real API
 - New `usersRepository` (`src/data/repositories/api/usersRepository.ts`): `get(id)`, `update(id, patch)` against `GET`/`PATCH /users/:id`. No `list`/`create`/`deactivate` yet — those are admin-only user-management, explicitly out of scope for this pass (a separate "admin user management" screen would be its own future feature, not bundled here).
@@ -78,6 +80,8 @@ The four post-Phase-5 audit gaps, each independent of the others.
 
 ### 4.4 Contract detail & deactivate
 - New Settings tab, **"Meter"** (5th tab, after Billing Period): read-only display of the immutable fields not shown elsewhere (`serviceNumber`, `meterSerial`, `address`, `customerType`, `billingAnchorDate`, `initialImportIndex`/`initialExportIndex`) — `bankedExportKwh` stays on the existing Solar tab, not duplicated here.
+
+**Verified live (all four sub-phases)**: Profile — edited and saved a real name change, confirmed it round-tripped and updated the header/sidebar immediately via `setUser`. Reading history — listed real readings, deleted one, confirmed the *next* reading's delta was correctly recomputed server-side and reflected after refetch. Period detail — created a fresh contract, logged a reading, closed the period early, clicked the resulting chart bar, and got the full segment/tier breakdown with correct dates (the bug above, caught in the same pass) and the "← Back to Dashboard" link working. Contract detail & deactivate — viewed the read-only fields (post date-bug-fix), confirmed the two-step confirm UI, and completed a real deactivation: correctly toasted, cleared the contract, and routed back to `/onboarding`. `tsc`/`vite build` clean; `eslint` at 8 problems (two new instances of the same long-accepted `set-state-in-effect` pattern from the new data-fetching effects — not a new category).
 - A "Deactivate meter" danger action at the bottom, behind the same inline two-step confirm pattern already used for "Close this period" in `ProjectionSummary` (not a native `window.confirm`, consistent with the existing convention). Calls `contractRepository.deactivate(id)` (already exists, unused until now), then `setContract(null)` — the Phase 1 active-contract bootstrap fix means a subsequent reload would reach the same conclusion on its own, but setting it directly avoids a round-trip and gets the user back to onboarding (or the Phase 3 admin empty state) immediately.
 
 ## Phase 5: Historical periods for the graph — confirmed, backend work approved
@@ -160,7 +164,7 @@ offsetPercent(panels)      = dailyGenerationKwh(panels) / dailyConsumptionKwh ×
 - [x] Milestone 1: Onboarding guidance + active-contract bootstrap fix (Phase 1)
 - [x] Milestone 2: Reading backfill (Phase 2)
 - [x] Milestone 3: Admin no-meter experience (Phase 3)
-- [ ] Milestone 4: Profile, reading history, period detail, contract detail (Phase 4)
+- [x] Milestone 4: Profile, reading history, period detail, contract detail (Phase 4)
 - [ ] Milestone 5: Historical periods — API + UI (Phase 5)
 - [ ] Milestone 6: Solar sizing calculator (Phase 6)
 

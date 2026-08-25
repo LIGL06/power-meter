@@ -159,8 +159,13 @@ function VersionEditor() {
             {versions.map((v) => (
               <li key={v.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
                 <div className="flex flex-col gap-0.5">
+                  {/* effectiveFrom/effectiveTo are calendar-month boundaries (always UTC
+                      midnight), not moments in time — read the UTC date directly rather than
+                      reinterpreting locally, which can shift them a day earlier (found live
+                      while fixing the same bug class on the new period-detail/meter pages). */}
                   <span>
-                    {formatShortDate(v.effectiveFrom)} — {v.effectiveTo ? formatShortDate(v.effectiveTo) : "current"}
+                    {formatShortDate(v.effectiveFrom.slice(0, 10))} —{" "}
+                    {v.effectiveTo ? formatShortDate(v.effectiveTo.slice(0, 10)) : "current"}
                   </span>
                   <span className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Badge variant="outline">{v.source}</Badge>

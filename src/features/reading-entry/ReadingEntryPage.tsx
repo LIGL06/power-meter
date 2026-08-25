@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -235,6 +236,10 @@ export function ReadingEntryPage() {
       </Card>
 
       <ProjectionSummary estimate={estimate} onClosePeriod={handleClosePeriod} isClosing={isClosing} />
+
+      <Link to="/reading/history" className="text-sm text-primary underline underline-offset-4 hover:text-primary/80">
+        View all readings →
+      </Link>
     </div>
   );
 }

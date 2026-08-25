@@ -1,4 +1,5 @@
 import { Bar, BarChart, CartesianGrid, Line, LineChart, XAxis, YAxis } from "recharts";
+import { useNavigate } from "react-router-dom";
 import type { BillingPeriodDto } from "@/domain/types";
 import { formatShortDate } from "@/lib/format";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
@@ -22,10 +23,13 @@ const costConfig = {
  * correlation between two unrelated units that isn't actually in the data.
  */
 export function ConsumptionCostChart({ periods }: ConsumptionCostChartProps) {
+  const navigate = useNavigate();
+
   const data = periods
     .filter((period) => period.status === "CLOSED" && period.totals)
     .reverse() // API returns newest-first; the chart wants chronological order.
     .map((period) => ({
+      id: period.id,
       // startDate is a calendar-day boundary (always UTC midnight), not a moment in
       // time — read its UTC date directly rather than reinterpreting it in the
       // viewer's local timezone, which can shift it a day either direction.
@@ -33,6 +37,10 @@ export function ConsumptionCostChart({ periods }: ConsumptionCostChartProps) {
       kwh: period.totals!.importedKwh,
       paid: period.totals!.total,
     }));
+
+  function goToPeriod(point: { id?: string | number } | undefined) {
+    if (point?.id) navigate(`/periods/${point.id}`);
+  }
 
   if (data.length === 0) {
     return (
@@ -52,7 +60,7 @@ export function ConsumptionCostChart({ periods }: ConsumptionCostChartProps) {
     <Card>
       <CardHeader>
         <CardTitle>Consumption &amp; cost</CardTitle>
-        <CardDescription>Past year, by billing period</CardDescription>
+        <CardDescription>Past year, by billing period — click a bar for the full breakdown</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         <div>
@@ -63,7 +71,14 @@ export function ConsumptionCostChart({ periods }: ConsumptionCostChartProps) {
               <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} hide />
               <YAxis tickLine={false} axisLine={false} width={36} domain={[0, "auto"]} />
               <ChartTooltip content={<ChartTooltipContent indicator="dot" />} />
-              <Bar dataKey="kwh" fill="var(--color-kwh)" radius={[4, 4, 0, 0]} maxBarSize={24} />
+              <Bar
+                dataKey="kwh"
+                fill="var(--color-kwh)"
+                radius={[4, 4, 0, 0]}
+                maxBarSize={24}
+                className="cursor-pointer"
+                onClick={goToPeriod}
+              />
             </BarChart>
           </ChartContainer>
         </div>

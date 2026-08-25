@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import type { AppConfig, BillingPeriodDto, Contract, EstimateDto } from "@/domain/types";
+import type { BillingPeriodDto, Contract, EstimateDto } from "@/domain/types";
 
 export interface AuthUser {
   id: string;
@@ -10,8 +10,7 @@ export interface AuthUser {
 }
 
 export interface AppDataContextValue {
-  config: AppConfig;
-  updateConfig: (patch: Partial<AppConfig>) => void;
+  /** Also used to refresh the cached user after a profile edit — see Settings' Profile tab. */
   setUser: (user: AuthUser | null) => void;
   user: AuthUser | null;
   isAuthenticated: boolean;

@@ -1,27 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
-import type { AppConfig, BillingPeriodDto, Contract, EstimateDto } from "@/domain/types";
-import { generateSeedConfig } from "@/data/seed";
-import { configRepository } from "@/data/repositories";
+import type { BillingPeriodDto, Contract, EstimateDto } from "@/domain/types";
 import { contractRepository, billingRepository } from "@/data/repositories/api";
 import { getAccessToken, getProfile, clearTokens, checkHealth } from "@/lib/api";
 import { AppDataContext, type AuthUser } from "./AppDataContext";
-
-interface LoadedData {
-  config: AppConfig;
-  user: AuthUser | null;
-}
-
-/** Seeds exactly once, on first-ever load (when the config repository has nothing saved yet). */
-function loadOrSeed(): LoadedData {
-  const existingConfig = configRepository.getConfig();
-  if (existingConfig) {
-    return { config: existingConfig, user: null };
-  }
-
-  const seedConfig = generateSeedConfig();
-  configRepository.saveConfig(seedConfig);
-  return { config: seedConfig, user: null };
-}
 
 /** `GET /health` is `@Public()` — a clean, auth-independent signal that the backend itself is (un)reachable. */
 async function probeServerHealth(): Promise<boolean> {
@@ -34,8 +15,7 @@ async function probeServerHealth(): Promise<boolean> {
 }
 
 export function AppDataProvider({ children }: { children: React.ReactNode }) {
-  // Lazy initializer avoids an empty-then-populated first paint.
-  const [{ config, user }, setState] = useState<LoadedData>(loadOrSeed);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [authReady, setAuthReady] = useState(false);
   const [contract, setContract] = useState<Contract | null>(null);
   const [contractReady, setContractReady] = useState(false);
@@ -54,7 +34,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     getProfile()
-      .then((res) => setState((prev) => ({ ...prev, user: res.data })))
+      .then((res) => setUser(res.data))
       .catch(() => clearTokens())
       .finally(() => setAuthReady(true));
   }, []);
@@ -160,21 +140,9 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     }
   }, [contract, fetchBilling]);
 
-  function updateConfig(patch: Partial<AppConfig>) {
-    const nextConfig = { ...config, ...patch };
-    configRepository.saveConfig(nextConfig);
-    setState((prev) => ({ ...prev, config: nextConfig }));
-  }
-
-  function setUser(user: AuthUser | null) {
-    setState((prev) => ({ ...prev, user }));
-  }
-
   return (
     <AppDataContext.Provider
       value={{
-        config,
-        updateConfig,
         user,
         isAuthenticated: !!user,
         setUser,

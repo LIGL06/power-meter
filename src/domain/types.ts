@@ -13,19 +13,6 @@ export interface Tier {
   ratePerKwh: number;
 }
 
-/** Plain local fields — no real authentication anywhere in this app. */
-export interface ProfileConfig {
-  firstName: string;
-  lastName: string;
-  address: string;
-  password: string;
-}
-
-/** The only Settings tab still backed by local storage — see api-implementation-v2.md Phase 4. */
-export interface AppConfig {
-  profile: ProfileConfig;
-}
-
 // ---------------------------------------------------------------------------
 // API types (power-meter-api). Mirror the server's DTOs field-for-field — see
 // api-implementation-v2.md's type-mapping table. Kept alongside the legacy
@@ -53,6 +40,31 @@ export interface ServiceAddress {
   city?: string;
   state?: string;
   postalCode?: string;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: Role;
+  isActive: boolean;
+  createdAt: ISODate;
+  updatedAt: ISODate;
+}
+
+/**
+ * `role`/`isActive` exist on the wire but are admin-only — the API rejects them
+ * outright (403) from a non-admin actor, even patching their own record, so the
+ * regular Profile UI never sends them. No `password` field: the API has no
+ * password-change endpoint yet.
+ */
+export interface UpdateUserProfileDto {
+  email?: string;
+  firstName?: string;
+  lastName?: string;
+  role?: Role;
+  isActive?: boolean;
 }
 
 export interface Contract {

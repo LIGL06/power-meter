@@ -3,7 +3,9 @@ import { useAppData } from "@/state/useAppData";
 import { AppDataProvider } from "@/state/AppDataProvider";
 import { AppShell } from "@/components/layout/AppShell";
 import { DashboardPage } from "@/features/dashboard/DashboardPage";
+import { PeriodDetailPage } from "@/features/dashboard/PeriodDetailPage";
 import { ReadingEntryPage } from "@/features/reading-entry/ReadingEntryPage";
+import { ReadingHistoryPage } from "@/features/reading-entry/ReadingHistoryPage";
 import { SettingsPage } from "@/features/settings/SettingsPage";
 import { LoginPage } from "@/features/auth/LoginPage";
 import { RegisterPage } from "@/features/auth/RegisterPage";
@@ -90,7 +92,9 @@ function AppRoutes() {
         }
       >
         <Route index element={<DashboardPage />} />
+        <Route path="periods/:periodId" element={<PeriodDetailPage />} />
         <Route path="reading" element={<ReadingEntryPage />} />
+        <Route path="reading/history" element={<ReadingHistoryPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
     </Routes>

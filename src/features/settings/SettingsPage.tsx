@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
 import { useAppData } from "@/state/useAppData";
 import { useLogout } from "@/state/useLogout";
-import type { PeriodLength, TariffDto } from "@/domain/types";
+import type { PeriodLength, ServiceAddress, TariffDto } from "@/domain/types";
 import { getErrorMessage } from "@/lib/api";
-import { contractRepository, tariffRepository } from "@/data/repositories/api";
-import { formatCurrency, formatKwh } from "@/lib/format";
+import { contractRepository, tariffRepository, usersRepository } from "@/data/repositories/api";
+import { formatCurrency, formatKwh, formatShortDate } from "@/lib/format";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
@@ -25,16 +26,25 @@ function LogoutButton() {
 }
 
 function ProfileTab() {
-  const { config, updateConfig } = useAppData();
+  const { user, setUser } = useAppData();
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<ProfileFormValues>({ resolver: zodResolver(profileSchema), defaultValues: config.profile });
+  } = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileSchema),
+    defaultValues: user ? { firstName: user.firstName, lastName: user.lastName, email: user.email } : undefined,
+  });
 
-  function onSubmit(values: ProfileFormValues) {
-    updateConfig({ profile: values });
-    toast.success("Profile saved");
+  async function onSubmit(values: ProfileFormValues) {
+    if (!user) return;
+    try {
+      const updated = await usersRepository.update(user.id, values);
+      setUser({ ...user, firstName: updated.firstName, lastName: updated.lastName, email: updated.email });
+      toast.success("Profile saved");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
   }
 
   return (
@@ -50,15 +60,11 @@ function ProfileTab() {
         <FieldError errors={errors.lastName ? [errors.lastName] : undefined} />
       </Field>
       <Field>
-        <FieldLabel htmlFor="address">Address</FieldLabel>
-        <Input id="address" {...register("address")} aria-invalid={!!errors.address} />
-        <FieldError errors={errors.address ? [errors.address] : undefined} />
+        <FieldLabel htmlFor="email">Email</FieldLabel>
+        <Input id="email" type="email" {...register("email")} aria-invalid={!!errors.email} />
+        <FieldError errors={errors.email ? [errors.email] : undefined} />
       </Field>
-      <Field>
-        <FieldLabel htmlFor="password">Password</FieldLabel>
-        <Input id="password" type="password" {...register("password")} aria-invalid={!!errors.password} />
-        <FieldError errors={errors.password ? [errors.password] : undefined} />
-      </Field>
+      <FieldDescription>Password changes aren&apos;t available yet.</FieldDescription>
       <Button type="submit" disabled={isSubmitting} className="w-fit">
         Save profile
       </Button>
@@ -251,6 +257,108 @@ function BillingTab() {
   );
 }
 
+function formatAddress(address: NonNullable<ServiceAddress>): string {
+  return [address.street, address.city, address.state, address.postalCode].filter(Boolean).join(", ");
+}
+
+/** Read-only contract detail (the immutable fields not shown on the Solar/Billing tabs) plus deactivation. */
+function MeterTab() {
+  const { contract, setContract } = useAppData();
+  const navigate = useNavigate();
+  const [confirming, setConfirming] = useState(false);
+  const [isDeactivating, setIsDeactivating] = useState(false);
+
+  if (!contract) return null;
+
+  async function handleDeactivate() {
+    if (!contract) return;
+    setIsDeactivating(true);
+    try {
+      await contractRepository.deactivate(contract.id);
+      setContract(null);
+      toast.success("Meter deactivated");
+      navigate("/");
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+      setIsDeactivating(false);
+    }
+  }
+
+  return (
+    <div className="flex max-w-md flex-col gap-4">
+      <Field>
+        <FieldLabel>Service number</FieldLabel>
+        <div className="text-sm">{contract.serviceNumber}</div>
+      </Field>
+      {contract.meterSerial && (
+        <Field>
+          <FieldLabel>Meter serial</FieldLabel>
+          <div className="text-sm">{contract.meterSerial}</div>
+        </Field>
+      )}
+      {contract.address && (
+        <Field>
+          <FieldLabel>Address</FieldLabel>
+          <div className="text-sm">{formatAddress(contract.address)}</div>
+        </Field>
+      )}
+      <Field>
+        <FieldLabel>Customer type</FieldLabel>
+        <div className="text-sm">{contract.customerType === "RESIDENTIAL" ? "Residential" : "Business"}</div>
+      </Field>
+      <Field>
+        <FieldLabel>Billing period started</FieldLabel>
+        {/* billingAnchorDate is a calendar-day boundary (always UTC midnight), not a moment
+            in time — read its UTC date directly, matching the chart's same fix, rather than
+            reinterpreting in the viewer's local timezone, which can shift it a day earlier. */}
+        <div className="text-sm">{formatShortDate(contract.billingAnchorDate.slice(0, 10))}</div>
+      </Field>
+      <Field>
+        <FieldLabel>Opening import index</FieldLabel>
+        <div className="text-sm">{formatKwh(contract.initialImportIndex)}</div>
+      </Field>
+      {contract.hasExports && (
+        <Field>
+          <FieldLabel>Opening export index</FieldLabel>
+          <div className="text-sm">{formatKwh(contract.initialExportIndex)}</div>
+        </Field>
+      )}
+      <FieldDescription>
+        These were set when the meter was registered and can&apos;t be changed here.
+      </FieldDescription>
+
+      <div className="flex flex-col gap-2 border-t pt-4">
+        <FieldLabel className="text-destructive">Danger zone</FieldLabel>
+        {!confirming ? (
+          <Button type="button" variant="destructive" size="sm" className="w-fit" onClick={() => setConfirming(true)}>
+            Deactivate meter
+          </Button>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <span className="text-sm text-muted-foreground">
+              This stops tracking readings for this meter. History is kept, not deleted.
+            </span>
+            <div className="flex items-center gap-2">
+              <Button type="button" variant="destructive" size="sm" disabled={isDeactivating} onClick={handleDeactivate}>
+                {isDeactivating ? "Deactivating..." : "Confirm deactivate"}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                disabled={isDeactivating}
+                onClick={() => setConfirming(false)}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function SettingsPage() {
   const { user } = useAppData();
 
@@ -270,6 +378,7 @@ export function SettingsPage() {
             <TabsTrigger value="tariff">Tariff &amp; Tiers</TabsTrigger>
             <TabsTrigger value="solar">Solar &amp; Export</TabsTrigger>
             <TabsTrigger value="billing">Billing Period</TabsTrigger>
+            <TabsTrigger value="meter">Meter</TabsTrigger>
           </TabsList>
           <TabsContent value="profile">
             <ProfileTab />
@@ -282,6 +391,9 @@ export function SettingsPage() {
           </TabsContent>
           <TabsContent value="billing">
             <BillingTab />
+          </TabsContent>
+          <TabsContent value="meter">
+            <MeterTab />
            </TabsContent>
          </Tabs>
          {user && <LogoutButton />}

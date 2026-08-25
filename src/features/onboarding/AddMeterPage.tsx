@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { getErrorMessage } from "@/lib/api";
 import { contractRepository } from "@/data/repositories/api";
 import { useAppData } from "@/state/useAppData";
+import { todayISO } from "@/domain/date-utils";
 import { addMeterSchema, type AddMeterFormValues } from "./addMeterSchema";
 
 const DEFAULT_VALUES: AddMeterFormValues = {
@@ -37,9 +38,13 @@ export function AddMeterPage() {
     control,
     handleSubmit,
     watch,
+    setValue,
     formState: { errors },
   } = useForm<AddMeterFormValues>({ resolver: zodResolver(addMeterSchema), defaultValues: DEFAULT_VALUES });
   const hasExports = watch("hasExports");
+  const billingAnchorDate = watch("billingAnchorDate");
+  const today = todayISO();
+  const isBackdated = billingAnchorDate !== today;
 
   async function onSubmit(values: AddMeterFormValues) {
     setIsSubmitting(true);
@@ -131,13 +136,34 @@ export function AddMeterPage() {
 
             <Field>
               <FieldLabel htmlFor="billingAnchorDate">First billing period starts</FieldLabel>
-              <Input
-                id="billingAnchorDate"
-                type="date"
-                {...register("billingAnchorDate")}
-                aria-invalid={!!errors.billingAnchorDate}
-              />
+              <div className="flex items-center gap-2">
+                <Input
+                  id="billingAnchorDate"
+                  type="date"
+                  className="flex-1"
+                  {...register("billingAnchorDate")}
+                  aria-invalid={!!errors.billingAnchorDate}
+                />
+                {isBackdated && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setValue("billingAnchorDate", today, { shouldValidate: true })}
+                  >
+                    Use today
+                  </Button>
+                )}
+              </div>
               <FieldError errors={errors.billingAnchorDate ? [errors.billingAnchorDate] : undefined} />
+              {isBackdated && (
+                <FieldDescription className="rounded-md border border-amber-500/40 bg-amber-500/10 px-2.5 py-2 text-amber-700 dark:text-amber-400">
+                  This date can&apos;t be changed later. Backdating only works if the opening index you enter below
+                  is the meter&apos;s <em>real</em> reading on this exact date — not an estimate. Not sure? Use
+                  today&apos;s date with today&apos;s actual reading instead; the app just won&apos;t line up with
+                  your CFE cycle boundary.
+                </FieldDescription>
+              )}
             </Field>
 
             <Field orientation="horizontal">
@@ -152,7 +178,9 @@ export function AddMeterPage() {
             </Field>
 
             <Field>
-              <FieldLabel htmlFor="initialImportIndex">Meter import index at registration</FieldLabel>
+              <FieldLabel htmlFor="initialImportIndex">
+                Meter&apos;s exact import reading on the start date above
+              </FieldLabel>
               <Input
                 id="initialImportIndex"
                 type="number"
@@ -165,7 +193,9 @@ export function AddMeterPage() {
 
             {hasExports && (
               <Field>
-                <FieldLabel htmlFor="initialExportIndex">Meter export index at registration</FieldLabel>
+                <FieldLabel htmlFor="initialExportIndex">
+                  Meter&apos;s exact export reading on the start date above
+                </FieldLabel>
                 <Input
                   id="initialExportIndex"
                   type="number"

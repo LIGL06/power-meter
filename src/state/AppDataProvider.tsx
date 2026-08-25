@@ -59,16 +59,20 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       .finally(() => setAuthReady(true));
   }, []);
 
-  // Once a session is confirmed, look up the user's most-recently-created contract
-  // (GET /contracts already sorts newest-first server-side). No contracts yet routes
-  // to onboarding. `ownerId` scopes this to the logged-in user even when they're an
-  // ADMIN — omitting it was a real bug found in testing: for an ADMIN, `GET /contracts`
-  // with no `ownerId` returns every user's contracts, and `items[0]` would silently
-  // pick up whichever contract was most recently created system-wide, attaching the
-  // admin's session to a random other user's meter. A failed fetch does NOT flip
-  // contractReady — that would otherwise misroute a "server unreachable" moment to
-  // onboarding as if the user had no contracts; it instead probes /health so the
-  // loading gate can distinguish "still loading" from "can't reach the server".
+  // Once a session is confirmed, look up the user's most-recently-created *active*
+  // contract (GET /contracts already sorts newest-first server-side; it never filters
+  // on isActive, so this filters client-side). No active contract routes to onboarding.
+  // `ownerId` scopes this to the logged-in user even when they're an ADMIN — omitting
+  // it was a real bug found in testing: for an ADMIN, `GET /contracts` with no `ownerId`
+  // returns every user's contracts, and `items[0]` would silently pick up whichever
+  // contract was most recently created system-wide, attaching the admin's session to a
+  // random other user's meter. The isActive filter matters for the same reason once a
+  // contract can be deactivated: without it, a deactivated contract would still come
+  // back as "the" contract and the app would keep operating against a dead meter
+  // instead of routing back to onboarding. A failed fetch does NOT flip contractReady —
+  // that would otherwise misroute a "server unreachable" moment to onboarding as if the
+  // user had no contracts; it instead probes /health so the loading gate can
+  // distinguish "still loading" from "can't reach the server".
   useEffect(() => {
     if (!authReady) return;
     if (!user) {
@@ -81,7 +85,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       .list({ ownerId: user.id })
       .then((res) => {
         if (cancelled) return;
-        setContract(res.items[0] ?? null);
+        setContract(res.items.find((c) => c.isActive) ?? null);
         setContractReady(true);
         setServerUnreachable(false);
       })

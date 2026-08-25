@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -392,7 +393,7 @@ function ImportPanel({ onImported }: { onImported: () => void }) {
 }
 
 export function AdminTariffsPage() {
-  const { user } = useAppData();
+  const { user, contract } = useAppData();
   const [refreshKey, setRefreshKey] = useState(0);
 
   if (user?.role !== "ADMIN") return null;
@@ -404,6 +405,14 @@ export function AdminTariffsPage() {
         <CardDescription>Publish, correct, and bulk-import global rate plan versions.</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-8">
+        {!contract && (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed p-3 text-sm">
+            <span className="text-muted-foreground">No meter registered under your account.</span>
+            <Button variant="outline" size="sm" render={<Link to="/onboarding" />}>
+              Register one
+            </Button>
+          </div>
+        )}
         <VersionEditor key={refreshKey} />
         <div className="border-t pt-6">
           <h3 className="mb-3 font-medium">Bulk import</h3>

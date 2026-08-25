@@ -17,13 +17,16 @@ import { Separator } from "@/components/ui/separator";
 import { useAppData } from "@/state/useAppData";
 import { useLogout } from "@/state/useLogout";
 
+// `requiresContract` pages are meaningless without a meter — hidden whenever the
+// logged-in account has none (an admin with no personal contract, most commonly).
+// Settings stays available regardless: its Profile tab is account-level, not meter-level.
 const NAV_ITEMS = [
-  { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/reading", label: "Daily Reading", icon: Gauge },
-  { to: "/settings", label: "Settings", icon: Settings },
+  { to: "/", label: "Dashboard", icon: LayoutDashboard, requiresContract: true },
+  { to: "/reading", label: "Daily Reading", icon: Gauge, requiresContract: true },
+  { to: "/settings", label: "Settings", icon: Settings, requiresContract: false },
 ];
 
-const ADMIN_NAV_ITEMS = [{ to: "/admin/tariffs", label: "Tariff Management", icon: ShieldCheck }];
+const ADMIN_NAV_ITEMS = [{ to: "/admin/tariffs", label: "Tariff Management", icon: ShieldCheck, requiresContract: false }];
 
 function LogoutButton() {
   const logout = useLogout();
@@ -32,9 +35,10 @@ function LogoutButton() {
 
 export function AppShell() {
   const location = useLocation();
-  const { user } = useAppData();
+  const { user, contract } = useAppData();
 
-  const navItems = user?.role === "ADMIN" ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
+  const allItems = user?.role === "ADMIN" ? [...NAV_ITEMS, ...ADMIN_NAV_ITEMS] : NAV_ITEMS;
+  const navItems = allItems.filter((item) => !item.requiresContract || contract);
   const activeItem = navItems.find((item) => item.to === location.pathname);
 
   return (

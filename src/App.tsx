@@ -78,7 +78,12 @@ function AppRoutes() {
           ) : !contractReady ? (
             contractGate
           ) : !contract ? (
-            <Navigate to="/onboarding" replace />
+            // A regular user has no reason to be here without a meter — the whole app is
+            // about tracking one. An admin's job may be exclusively managing the global
+            // tariff catalog (the seeded admin account has none at all, confirmed live) —
+            // forcing them through onboarding to reach anything at all was a real gap
+            // found in testing, so they land on their own home instead.
+            <Navigate to={user?.role === "ADMIN" ? "/admin/tariffs" : "/onboarding"} replace />
           ) : (
             <AppShell />
           )

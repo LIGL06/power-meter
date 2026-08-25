@@ -49,11 +49,13 @@ Append-only, per architecture decision #1 above.
 
 **Verified live**: registered a fresh contract with the anchor backdated 5 days, then from `ReadingEntryPage` — backfilled a reading 3 days into the period (billing correctly recalculated days-elapsed and daily average from it), confirmed the date bounds tightened to the new latest reading, confirmed re-selecting that date switched the form into edit mode automatically, and confirmed attempting a date one day *before* the new minimum (bypassing the native picker via direct value assignment, exactly the gap found) was correctly blocked with the button disabled and an explanatory error — the scenario item 3 above exists to prevent. Logging today's reading afterward worked normally, flipping into "editing it below" exactly as the original single-day version did. `tsc`/`eslint`/`vite build` all green (lint still at 6, unchanged).
 
-## Phase 3: Admin "no meter" experience — confirmed: land on `/admin/tariffs`, with an empty state there
-1. **`App.tsx`**: the root route group's `!contract` branch currently always `<Navigate to="/onboarding" />`. Change to: still redirect a normal user there; for `role === 'ADMIN'`, redirect to `/admin/tariffs` instead — that becomes the admin's default home whenever they have no personal meter.
-2. **`AdminTariffsPage` gets a small empty-state banner** (not a whole separate page) rendered above the version editor when the logged-in admin's own `contract` is `null`: "No meter registered under your account — [Register one]" linking to `/onboarding`. This keeps the option reachable without forcing it, and without adding a second empty-state surface to maintain.
-3. **`AppShell.tsx` nav**: hide **Dashboard**, **Daily Reading**, and **Solar Sizing** (Phase 6) from `NAV_ITEMS` whenever `!contract` (both roles — these pages are meaningless without a meter regardless of who's looking). **Settings** stays visible unconditionally, now that Phase 4 makes its Profile tab real-API-backed and account-level rather than meter-level. **Tariff Management** stays admin-gated as today, unaffected by contract state.
-4. Depends on Phase 1's active-contract fix already being in place (an admin who deactivates a meter should land back on `/admin/tariffs` with the empty-state banner showing again, not a broken state).
+## Phase 3: Admin "no meter" experience ✅ COMPLETED
+1. **`App.tsx`**: the root route group's `!contract` branch redirects a normal user to `/onboarding` as before; for `role === 'ADMIN'`, it redirects to `/admin/tariffs` instead — that's the admin's default home whenever they have no personal meter.
+2. **`AdminTariffsPage` gets a small empty-state banner** (not a whole separate page) rendered above the version editor when the logged-in admin's own `contract` is `null`: "No meter registered under your account — [Register one]" linking to `/onboarding`.
+3. **`AppShell.tsx` nav**: `NAV_ITEMS`/`ADMIN_NAV_ITEMS` entries now carry a `requiresContract` flag; **Dashboard** and **Daily Reading** are hidden whenever `!contract` (both roles). **Settings** and **Tariff Management** stay visible unconditionally.
+4. Depends on Phase 1's active-contract fix already being in place — confirmed live (see below).
+
+**Verified live**: found the seeded admin account had picked up a real contract (alias "HOME") since the last session — not something built for this pass, so temporarily deactivated it via the API to exercise the actual no-meter path, then reactivated it afterward to leave things as found. With it deactivated: navigating to `/` correctly redirected to `/admin/tariffs`, the nav sidebar showed only Settings and Tariff Management, the empty-state banner appeared, and "Register one" correctly opened `/onboarding`. Reactivating the contract afterward (via `PATCH .../isActive: true`) and reloading confirmed the app picks it back up normally — incidentally re-confirming Phase 1's active-contract fix in both directions. `tsc`/`eslint`/`vite build` all green (lint still at 6).
 
 ## Phase 4: Account & history surfaces
 The four post-Phase-5 audit gaps, each independent of the others.
@@ -157,7 +159,7 @@ offsetPercent(panels)      = dailyGenerationKwh(panels) / dailyConsumptionKwh ×
 ## Milestones
 - [x] Milestone 1: Onboarding guidance + active-contract bootstrap fix (Phase 1)
 - [x] Milestone 2: Reading backfill (Phase 2)
-- [ ] Milestone 3: Admin no-meter experience (Phase 3)
+- [x] Milestone 3: Admin no-meter experience (Phase 3)
 - [ ] Milestone 4: Profile, reading history, period detail, contract detail (Phase 4)
 - [ ] Milestone 5: Historical periods — API + UI (Phase 5)
 - [ ] Milestone 6: Solar sizing calculator (Phase 6)

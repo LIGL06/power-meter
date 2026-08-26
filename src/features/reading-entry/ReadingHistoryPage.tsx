@@ -23,10 +23,11 @@ export function ReadingHistoryPage() {
 
   const fetchPage = useCallback(
     async (targetPage: number) => {
-      if (!contract) return;
+      if (!contract) return null;
       const res = await readingsRepository.list(contract.id, { page: targetPage, limit: PAGE_SIZE });
       setReadings(res.items);
       setPages(res.meta.pages);
+      return res;
     },
     [contract],
   );
@@ -56,7 +57,13 @@ export function ReadingHistoryPage() {
       await readingsRepository.remove(reading.id);
       toast.success("Reading deleted");
       setConfirmingId(null);
-      await Promise.all([fetchPage(page), refetchBilling()]);
+      const [result] = await Promise.all([fetchPage(page), refetchBilling()]);
+      // Deleting the last reading on a page past the first would otherwise strand the view
+      // on a now-empty page (readings older than 20 are common once a period runs long
+      // without closing) — step back one instead of showing a false "no readings" state.
+      if (result && result.items.length === 0 && page > 1) {
+        setPage((p) => p - 1);
+      }
     } catch (error) {
       toast.error(getErrorMessage(error));
     } finally {

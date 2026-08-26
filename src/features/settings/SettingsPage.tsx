@@ -371,7 +371,7 @@ function PastBillsSection() {
                 type="number"
                 step="0.1"
                 aria-invalid={!!errors.exportedKwh}
-                {...register("exportedKwh", { valueAsNumber: true })}
+                {...register("exportedKwh", { setValueAs: (v) => (v === "" ? undefined : Number(v)) })}
               />
               <FieldError errors={errors.exportedKwh ? [errors.exportedKwh] : undefined} />
             </Field>

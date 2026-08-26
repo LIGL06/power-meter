@@ -22,7 +22,14 @@ const DEFAULT_VALUES: AddMeterFormValues = {
   customerType: "RESIDENTIAL",
   tariffCode: "1C",
   periodDays: 60,
-  billingAnchorDate: new Date().toISOString().slice(0, 10),
+  // Must be the same "today" the component itself compares against (`todayISO()`, local
+  // calendar date) — using `new Date().toISOString()` (UTC) here instead was a real bug:
+  // for any timezone behind UTC (confirmed live at UTC-6), the UTC date is ahead of the
+  // local one for several hours a day, so the form loaded with a default that (a) tripped
+  // the "isBackdated" amber warning on first render, for a date that was never actually
+  // backdated, and (b) failed the max-today validation below before the user touched
+  // anything at all.
+  billingAnchorDate: todayISO(),
   hasExports: false,
   initialImportIndex: 0,
   initialExportIndex: 0,
@@ -140,6 +147,7 @@ export function AddMeterPage() {
                 <Input
                   id="billingAnchorDate"
                   type="date"
+                  max={today}
                   className="flex-1"
                   {...register("billingAnchorDate")}
                   aria-invalid={!!errors.billingAnchorDate}

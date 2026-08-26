@@ -29,16 +29,44 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const retryConnection = useCallback(() => setRetryTick((t) => t + 1), []);
 
   // Rehydrates the session from a stored access token so a page refresh doesn't drop the user.
+  // A failure here used to be treated as "not authenticated" unconditionally, clearing tokens
+  // on ANY error — including a plain network error. That meant a page refresh during a brief
+  // server outage looked identical to a genuinely expired session and silently logged the user
+  // out, even though the stored token was still perfectly valid (a real gap, explicitly flagged
+  // as "known, not fixed" in api-implementation-v2.md's Phase 5). Now it probes /health the same
+  // way the contract/billing effects already do: only clears tokens when the server actually
+  // confirms the session is invalid, and otherwise surfaces serverUnreachable so the app's
+  // top-level loading gate can offer a retry instead of bouncing to /login.
   useEffect(() => {
+    if (user) return; // Already rehydrated — a retryTick bump from a later gate shouldn't redo this.
     if (!getAccessToken()) {
       setAuthReady(true);
       return;
     }
+    let cancelled = false;
     getProfile()
-      .then((res) => setUser(res.data))
-      .catch(() => clearTokens())
-      .finally(() => setAuthReady(true));
-  }, []);
+      .then((res) => {
+        if (cancelled) return;
+        setUser(res.data);
+        setAuthReady(true);
+        setServerUnreachable(false);
+      })
+      .catch(async (error) => {
+        console.error("Failed to rehydrate session", error);
+        const healthy = await probeServerHealth();
+        if (cancelled) return;
+        if (healthy) {
+          // Reachable, so this really is an invalid/expired session, not a transient blip.
+          clearTokens();
+          setAuthReady(true);
+        } else {
+          setServerUnreachable(true);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [user, retryTick]);
 
   // Once a session is confirmed, look up the user's most-recently-created *active*
   // contract (GET /contracts already sorts newest-first server-side; it never filters

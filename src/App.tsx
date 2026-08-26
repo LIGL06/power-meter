@@ -31,8 +31,11 @@ function AppRoutes() {
   const { isAuthenticated, authReady, contract, contractReady, user, serverUnreachable, retryConnection } =
     useAppData();
 
+  // Distinct from the contract/billing gates below: this covers session rehydration itself
+  // failing because the server can't be reached at all (see AppDataProvider) — without this,
+  // that state looked identical to "still loading" forever instead of offering a retry.
   if (!authReady) {
-    return <LoadingScreen />;
+    return serverUnreachable ? <ConnectionGate onRetry={retryConnection} /> : <LoadingScreen />;
   }
 
   const contractGate = serverUnreachable ? <ConnectionGate onRetry={retryConnection} /> : <LoadingScreen />;
@@ -99,6 +102,9 @@ function AppRoutes() {
         <Route path="solar-sizing" element={<SolarSizingPage />} />
         <Route path="settings" element={<SettingsPage />} />
       </Route>
+      {/* No route matches otherwise renders nothing at all — a stale bookmark, a typo'd
+          URL, or a removed page would dead-end on a blank page with no nav to escape from. */}
+      <Route path="*" element={<Navigate to={isAuthenticated ? "/" : "/login"} replace />} />
     </Routes>
   );
 }

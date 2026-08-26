@@ -1,4 +1,4 @@
-import { Bar, BarChart, CartesianGrid, Line, LineChart, Rectangle, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, Line, LineChart, usePlotArea, useYAxisScale, XAxis, YAxis } from "recharts";
 import { useNavigate } from "react-router-dom";
 import type { BillingPeriodDto, HistoricalPeriodEntryDto } from "@/domain/types";
 import { formatShortDate } from "@/lib/format";
@@ -30,6 +30,59 @@ const costConfig = {
 } satisfies ChartConfig;
 
 const HISTORICAL_FILL_OPACITY = 0.45;
+const MAX_BAR_WIDTH = 24;
+
+/**
+ * Draws the visible bars itself via recharts' own `useYAxisScale`/`usePlotArea` hooks,
+ * rather than relying on `<Bar>`'s built-in rendering.
+ *
+ * Root-caused live: `<Bar>`'s own geometry pipeline renders bars with wildly wrong
+ * heights (or none at all) in this app's recharts version — reproduces identically on
+ * the untouched pre-Phase-5 chart with real non-zero data, so it predates and is
+ * unrelated to the historical-periods work. Instrumenting recharts' own source
+ * confirmed the underlying scale math (`useYAxisScale`, the same function `<Bar>`
+ * itself calls internally) is correct; only `<Bar>`'s own commit-to-DOM step is
+ * broken. `<Bar>` is kept in the tree (invisible) purely so the tooltip still has a
+ * registered series to read from — every visible pixel comes from here instead.
+ */
+function ConsumptionBars({ data, onBarClick }: { data: ChartPoint[]; onBarClick: (point: ChartPoint) => void }) {
+  const yScale = useYAxisScale();
+  const plotArea = usePlotArea();
+
+  if (!yScale || !plotArea || data.length === 0) return null;
+
+  const zeroY = yScale(0) ?? plotArea.y + plotArea.height;
+  const categoryWidth = plotArea.width / data.length;
+  const barWidth = Math.min(MAX_BAR_WIDTH, categoryWidth * 0.6);
+
+  return (
+    <g>
+      {data.map((point, index) => {
+        const y = yScale(point.kwh);
+        if (y === undefined) return null;
+        const height = Math.max(zeroY - y, 0);
+        const x = plotArea.x + index * categoryWidth + (categoryWidth - barWidth) / 2;
+        return (
+          <rect
+            key={point.id}
+            x={x}
+            y={y}
+            width={barWidth}
+            height={height}
+            rx={4}
+            ry={4}
+            fill="var(--color-kwh)"
+            fillOpacity={point.historical ? HISTORICAL_FILL_OPACITY : 1}
+            stroke={point.historical ? "var(--color-kwh)" : undefined}
+            strokeDasharray={point.historical ? "3 2" : undefined}
+            className="cursor-pointer"
+            onClick={() => onBarClick(point)}
+          />
+        );
+      })}
+    </g>
+  );
+}
 
 /**
  * Two aligned single-axis panels sharing the same period labels, rather than one
@@ -98,7 +151,16 @@ export function ConsumptionCostChart({ periods, historicalPeriodEntries }: Consu
       <CardContent className="flex flex-col gap-6">
         <div>
           <p className="mb-1 text-xs font-medium text-muted-foreground">Energy consumed (kWh)</p>
-          <ChartContainer config={consumptionConfig} className="aspect-auto h-[160px] w-full">
+          {/* The invisible <Bar>'s own rendered path (kept only to register the "kwh" series for
+              the tooltip) sits above ConsumptionBars' <rect> elements in paint order regardless of
+              JSX order, and the hover-cursor overlay does too — both would otherwise swallow a
+              click/hover before it reaches the real bar underneath. Confirmed live: tooltip hover
+              doesn't depend on either (it tracks mouse-x against category bounds chart-wide), so
+              disabling pointer-events on both is safe. */}
+          <ChartContainer
+            config={consumptionConfig}
+            className="aspect-auto h-[160px] w-full [&_.recharts-tooltip-cursor]:pointer-events-none [&_.recharts-rectangle]:pointer-events-none"
+          >
             <BarChart data={data} margin={{ left: 0, right: 8, top: 8 }}>
               <CartesianGrid vertical={false} />
               <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} hide />
@@ -118,31 +180,10 @@ export function ConsumptionCostChart({ periods, historicalPeriodEntries }: Consu
                   />
                 }
               />
-              <Bar
-                dataKey="kwh"
-                radius={[4, 4, 0, 0]}
-                maxBarSize={24}
-                className="cursor-pointer"
-                onClick={goToPeriod}
-                // recharts' default Rectangle renderer draws nothing at all for this Bar in this
-                // app's recharts version (confirmed live, and confirmed pre-existing — reproduces
-                // identically on the untouched pre-Phase-5 component with real non-zero data, so
-                // it isn't something this phase introduced). Supplying the same Rectangle
-                // explicitly via `shape` is the workaround that actually renders a bar; it also
-                // gives a hook for the historical/real fill distinction below.
-                shape={(shapeProps: { payload?: ChartPoint }) => {
-                  const point = shapeProps.payload;
-                  return (
-                    <Rectangle
-                      {...shapeProps}
-                      fill="var(--color-kwh)"
-                      fillOpacity={point?.historical ? HISTORICAL_FILL_OPACITY : 1}
-                      stroke={point?.historical ? "var(--color-kwh)" : undefined}
-                      strokeDasharray={point?.historical ? "3 2" : undefined}
-                    />
-                  );
-                }}
-              />
+              {/* Registers the "kwh" series for the tooltip only — invisible and non-interactive.
+                  ConsumptionBars draws every pixel that's actually seen or clicked. */}
+              <Bar dataKey="kwh" fill="transparent" isAnimationActive={false} legendType="none" />
+              <ConsumptionBars data={data} onBarClick={goToPeriod} />
             </BarChart>
           </ChartContainer>
         </div>

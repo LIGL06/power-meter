@@ -1,5 +1,5 @@
 import { Link, Outlet, useLocation } from "react-router-dom";
-import { Gauge, LayoutDashboard, Settings, ShieldCheck, Zap } from "lucide-react";
+import { Gauge, LayoutDashboard, Settings, ShieldCheck, Sun, Zap } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -23,6 +23,7 @@ import { useLogout } from "@/state/useLogout";
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard, requiresContract: true },
   { to: "/reading", label: "Daily Reading", icon: Gauge, requiresContract: true },
+  { to: "/solar-sizing", label: "Solar Sizing", icon: Sun, requiresContract: true },
   { to: "/settings", label: "Settings", icon: Settings, requiresContract: false },
 ];
 

@@ -125,7 +125,7 @@ Two bugs found and fixed during this pass, both in code written for this phase:
 1. `PastBillsSection`'s post-submit `reset({...})` call left the numeric fields (`importedKwh`, `total`) showing their just-submitted values instead of clearing — react-hook-form doesn't clear an uncontrolled input when a field's reset value is `undefined`. Fixed by calling bare `reset()` instead, which is what actually clears every field back to empty.
 2. `ConsumptionCostChart`'s new per-point bar styling (`<Cell>` children on `<Bar>`) rendered no bar at all under this app's recharts version. Root-caused by temporarily swapping back the *original, untouched* pre-Phase-5 chart component against real non-zero backend data: the plain, single-fill `<Bar>` from Phase 3/4 renders **no visible rectangle either** — confirmed this is a pre-existing defect in this recharts version, not something Phase 5 introduced. Workaround shipped: an explicit `shape` render prop wrapping recharts' own `<Rectangle>`, which does render (and gives a hook for the historical/real fill distinction) — but the underlying bar-height computation itself is still off (bars render far shorter than their value implies) in a way this pass didn't chase further, since it predates and is unrelated to the historical-periods feature. The "Amount paid" line panel is unaffected (hollow vs. filled dots render and scale correctly) and fully carries the "visually distinguished" requirement live. **Worth a follow-up**: the bar sub-chart's height bug is real and affects any real closed period with nonzero consumption, not just historical entries — flagging for a dedicated fix outside this plan.
 
-## Phase 6: Solar sizing calculator — new tab, UI-only
+## Phase 6: Solar sizing calculator ✅ COMPLETED — new tab, UI-only
 **Goal:** given how much a contract imports, how many 620–650 W panels would it take to drive net imports to ~0 kWh (so the period only bills the tariff's fixed/minimum charge)? A planning tool, not a certified engineering estimate — framed that way throughout the UI.
 
 **Formula** (matches the worked example given):
@@ -166,13 +166,17 @@ offsetPercent(panels)      = dailyGenerationKwh(panels) / dailyConsumptionKwh ×
 - `src/features/solar-sizing/components/PanelSizingTable.tsx` — the results table.
 - `AppShell.tsx`: new nav item **"Solar Sizing"**, route `/solar-sizing`, added to the group hidden when `!contract` (Phase 3, decision #5).
 
+**Verified live**: registered a second contract (30-day periods, anchored 10 days back) and backdated three readings (day 2/5/8) to get real, distinct average (25 kWh/day, matching `estimate.dailyAverage.importKwh` exactly) and peak-day (26.7→"27 kWh", from the 80 kWh/3-day gap) figures — confirmed both render side by side and the basis toggle correctly re-drives every row (offset%/remaining import shifted between the two bases as expected). Entered peak sun hours (5) with the 620 W/85% defaults left untouched: row 1 matched the worked example's per-panel generation (2.635 kWh/day, matching `0.620 × 0.85 × 5`), "Generation/period" correctly used the contract's own 30-day `periodDays`, and row 10 was the first to clear 100% offset, highlighted, with "Fixed/minimum charge only" showing the tariff's real (and, for 1C, genuinely zero) `fixedCharge`/`minimumCharge` figure rather than a placeholder. Also confirmed the "not enough data yet" and "enter peak sun hours" empty states independently (they're now two different messages — see below), and that the nav item follows the existing `requiresContract` hide-without-a-contract behavior unchanged. `tsc`/`vite build` clean; `eslint` at 9 (one new instance of the same pre-accepted `set-state-in-effect` pattern from the page's data-fetching effect, not a new category).
+
+One correctness fix made during this pass: `PanelSizingTable`'s empty state originally always said "Enter peak sun hours above," even when sun hours *were* entered and the table was empty because the selected basis simply had no data yet (a fresh period with fewer than two readings). The page now computes which of the two states applies and passes the right message down.
+
 ## Milestones
 - [x] Milestone 1: Onboarding guidance + active-contract bootstrap fix (Phase 1)
 - [x] Milestone 2: Reading backfill (Phase 2)
 - [x] Milestone 3: Admin no-meter experience (Phase 3)
 - [x] Milestone 4: Profile, reading history, period detail, contract detail (Phase 4)
 - [x] Milestone 5: Historical periods — API + UI (Phase 5)
-- [ ] Milestone 6: Solar sizing calculator (Phase 6)
+- [x] Milestone 6: Solar sizing calculator (Phase 6)
 
 ## Decisions from review
 1. ✅ Phase 2 stays append-only — no backend change to `ReadingsService.create()` for this pass.

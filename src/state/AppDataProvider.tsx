@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
-import type { BillingPeriodDto, Contract, EstimateDto } from "@/domain/types";
-import { contractRepository, billingRepository } from "@/data/repositories/api";
+import type { BillingPeriodDto, Contract, EstimateDto, HistoricalPeriodEntryDto } from "@/domain/types";
+import { contractRepository, billingRepository, historicalPeriodsRepository } from "@/data/repositories/api";
 import { getAccessToken, getProfile, clearTokens, checkHealth } from "@/lib/api";
 import { AppDataContext, type AuthUser } from "./AppDataContext";
 
@@ -21,6 +21,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [contractReady, setContractReady] = useState(false);
   const [estimate, setEstimate] = useState<EstimateDto | null>(null);
   const [billingPeriods, setBillingPeriods] = useState<BillingPeriodDto[]>([]);
+  const [historicalPeriodEntries, setHistoricalPeriodEntries] = useState<HistoricalPeriodEntryDto[]>([]);
   const [billingReady, setBillingReady] = useState(false);
   const [serverUnreachable, setServerUnreachable] = useState(false);
   const [retryTick, setRetryTick] = useState(0);
@@ -86,12 +87,14 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   }, [authReady, user, retryTick]);
 
   const fetchBilling = useCallback(async (contractId: string) => {
-    const [nextEstimate, nextPeriods] = await Promise.all([
+    const [nextEstimate, nextPeriods, nextHistorical] = await Promise.all([
       billingRepository.estimate(contractId),
       billingRepository.periods(contractId),
+      historicalPeriodsRepository.list(contractId),
     ]);
     setEstimate(nextEstimate);
     setBillingPeriods(nextPeriods);
+    setHistoricalPeriodEntries(nextHistorical);
   }, []);
 
   // Mirrors the contract effect above, one link further down the chain: fires once a
@@ -106,6 +109,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
     if (!contractReady || !contract) {
       setEstimate(null);
       setBillingPeriods([]);
+      setHistoricalPeriodEntries([]);
       setBillingReady(false);
       return;
     }
@@ -152,6 +156,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         contractReady,
         estimate,
         billingPeriods,
+        historicalPeriodEntries,
         billingReady,
         refetchBilling,
         serverUnreachable,

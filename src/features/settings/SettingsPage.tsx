@@ -6,8 +6,9 @@ import { toast } from "sonner";
 import { useAppData } from "@/state/useAppData";
 import { useLogout } from "@/state/useLogout";
 import type { PeriodLength, ServiceAddress, TariffDto } from "@/domain/types";
+import { todayISO } from "@/domain/date-utils";
 import { getErrorMessage } from "@/lib/api";
-import { contractRepository, tariffRepository, usersRepository } from "@/data/repositories/api";
+import { contractRepository, historicalPeriodsRepository, tariffRepository, usersRepository } from "@/data/repositories/api";
 import { formatCurrency, formatKwh, formatShortDate } from "@/lib/format";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,7 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { profileSchema, type ProfileFormValues } from "./settingsSchema";
+import { profileSchema, historicalPeriodSchema, type ProfileFormValues, type HistoricalPeriodFormValues } from "./settingsSchema";
 
 function LogoutButton() {
   const logout = useLogout();
@@ -261,6 +262,204 @@ function formatAddress(address: NonNullable<ServiceAddress>): string {
   return [address.street, address.city, address.state, address.postalCode].filter(Boolean).join(", ");
 }
 
+/**
+ * Manually-entered summaries of bills from before this meter was tracked here
+ * (ui-features-v1.md Phase 5) — a lightweight, separate record from a real
+ * BillingPeriod, since a manual entry can't honestly carry a real period's
+ * invariants (tariff snapshot, reading linkage, sequential numbering).
+ */
+function PastBillsSection() {
+  const { contract, historicalPeriodEntries, refetchBilling } = useAppData();
+  const today = todayISO();
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<HistoricalPeriodFormValues>({ resolver: zodResolver(historicalPeriodSchema) });
+
+  if (!contract) return null;
+
+  async function onSubmit(values: HistoricalPeriodFormValues) {
+    if (!contract) return;
+    try {
+      await historicalPeriodsRepository.create(contract.id, {
+        // Bare calendar dates, parsed as UTC midnight — matches how billingAnchorDate
+        // is submitted in onboarding, keeping every stored date a calendar-day boundary.
+        startDate: new Date(values.startDate).toISOString(),
+        endDate: new Date(values.endDate).toISOString(),
+        importedKwh: values.importedKwh,
+        exportedKwh: contract.hasExports ? values.exportedKwh : undefined,
+        total: values.total,
+        notes: values.notes || undefined,
+      });
+      toast.success("Past bill added");
+      // A bare reset() (no values object) is the form the RHF docs actually clear uncontrolled
+      // inputs with — passing `undefined` per-field for the number inputs left their DOM value
+      // (and hence the visible text) unchanged, confirmed live.
+      reset();
+      await refetchBilling();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    }
+  }
+
+  async function handleDelete(entryId: string) {
+    if (!contract) return;
+    setDeletingId(entryId);
+    try {
+      await historicalPeriodsRepository.remove(contract.id, entryId);
+      toast.success("Entry deleted");
+      setConfirmingId(null);
+      await refetchBilling();
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-4 border-t pt-4">
+      <div>
+        <FieldLabel>Past bills</FieldLabel>
+        <FieldDescription>
+          Bills you already have on paper from before you started tracking here — shown on the dashboard chart
+          alongside real billing periods, but kept separate: nothing here is priced or reconciled against your rate
+          plan.
+        </FieldDescription>
+      </div>
+
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-4">
+          <Field>
+            <FieldLabel htmlFor="hp-startDate">Start date</FieldLabel>
+            <Input id="hp-startDate" type="date" max={today} {...register("startDate")} aria-invalid={!!errors.startDate} />
+            <FieldError errors={errors.startDate ? [errors.startDate] : undefined} />
+          </Field>
+          <Field>
+            <FieldLabel htmlFor="hp-endDate">End date</FieldLabel>
+            <Input id="hp-endDate" type="date" max={today} {...register("endDate")} aria-invalid={!!errors.endDate} />
+            <FieldError errors={errors.endDate ? [errors.endDate] : undefined} />
+          </Field>
+        </div>
+        <FieldDescription>
+          Meant for bills before you started tracking here — the app won&apos;t stop you from entering other dates,
+          but a period that already overlaps real data will look odd on the chart.
+        </FieldDescription>
+
+        <div className="grid grid-cols-2 gap-4">
+          <Field>
+            <FieldLabel htmlFor="hp-importedKwh">Imported (kWh)</FieldLabel>
+            <Input
+              id="hp-importedKwh"
+              type="number"
+              step="0.1"
+              aria-invalid={!!errors.importedKwh}
+              {...register("importedKwh", { valueAsNumber: true })}
+            />
+            <FieldError errors={errors.importedKwh ? [errors.importedKwh] : undefined} />
+          </Field>
+          {contract.hasExports && (
+            <Field>
+              <FieldLabel htmlFor="hp-exportedKwh">Exported (kWh)</FieldLabel>
+              <Input
+                id="hp-exportedKwh"
+                type="number"
+                step="0.1"
+                aria-invalid={!!errors.exportedKwh}
+                {...register("exportedKwh", { valueAsNumber: true })}
+              />
+              <FieldError errors={errors.exportedKwh ? [errors.exportedKwh] : undefined} />
+            </Field>
+          )}
+        </div>
+
+        <Field>
+          <FieldLabel htmlFor="hp-total">Total billed</FieldLabel>
+          <Input
+            id="hp-total"
+            type="number"
+            step="0.01"
+            aria-invalid={!!errors.total}
+            {...register("total", { valueAsNumber: true })}
+          />
+          <FieldError errors={errors.total ? [errors.total] : undefined} />
+        </Field>
+
+        <Field>
+          <FieldLabel htmlFor="hp-notes">Notes</FieldLabel>
+          <Input id="hp-notes" placeholder="e.g. From paper bill" {...register("notes")} aria-invalid={!!errors.notes} />
+          <FieldError errors={errors.notes ? [errors.notes] : undefined} />
+        </Field>
+
+        <Button type="submit" disabled={isSubmitting} className="w-fit">
+          Add past bill
+        </Button>
+      </form>
+
+      {historicalPeriodEntries.length > 0 && (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b text-left text-xs text-muted-foreground">
+                <th className="py-2 pr-3 font-medium">Period</th>
+                <th className="py-2 pr-3 font-medium">Imported</th>
+                <th className="py-2 pr-3 font-medium">Total</th>
+                <th className="py-2 pr-3 font-medium">Notes</th>
+                <th className="py-2 pl-3 text-right font-medium">&nbsp;</th>
+              </tr>
+            </thead>
+            <tbody>
+              {historicalPeriodEntries.map((entry) => (
+                <tr key={entry.id} className="border-b last:border-0">
+                  <td className="py-2 pr-3">
+                    {formatShortDate(entry.startDate.slice(0, 10))} – {formatShortDate(entry.endDate.slice(0, 10))}
+                  </td>
+                  <td className="py-2 pr-3">{formatKwh(entry.importedKwh)}</td>
+                  <td className="py-2 pr-3">{formatCurrency(entry.total, entry.currency)}</td>
+                  <td className="py-2 pr-3 text-muted-foreground">{entry.notes || "—"}</td>
+                  <td className="py-2 pl-3 text-right">
+                    {confirmingId === entry.id ? (
+                      <span className="inline-flex items-center gap-1.5">
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="xs"
+                          disabled={deletingId === entry.id}
+                          onClick={() => handleDelete(entry.id)}
+                        >
+                          Confirm
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="xs"
+                          disabled={deletingId === entry.id}
+                          onClick={() => setConfirmingId(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </span>
+                    ) : (
+                      <Button type="button" variant="ghost" size="xs" onClick={() => setConfirmingId(entry.id)}>
+                        Delete
+                      </Button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Read-only contract detail (the immutable fields not shown on the Solar/Billing tabs) plus deactivation. */
 function MeterTab() {
   const { contract, setContract } = useAppData();
@@ -285,7 +484,7 @@ function MeterTab() {
   }
 
   return (
-    <div className="flex max-w-md flex-col gap-4">
+    <div className="flex max-w-2xl flex-col gap-4">
       <Field>
         <FieldLabel>Service number</FieldLabel>
         <div className="text-sm">{contract.serviceNumber}</div>
@@ -326,6 +525,8 @@ function MeterTab() {
       <FieldDescription>
         These were set when the meter was registered and can&apos;t be changed here.
       </FieldDescription>
+
+      <PastBillsSection />
 
       <div className="flex flex-col gap-2 border-t pt-4">
         <FieldLabel className="text-destructive">Danger zone</FieldLabel>

@@ -1,5 +1,5 @@
 import { createContext } from "react";
-import type { BillingPeriodDto, Contract, EstimateDto } from "@/domain/types";
+import type { BillingPeriodDto, Contract, EstimateDto, HistoricalPeriodEntryDto } from "@/domain/types";
 
 export interface AuthUser {
   id: string;
@@ -22,8 +22,11 @@ export interface AppDataContextValue {
   contractReady: boolean;
   estimate: EstimateDto | null;
   billingPeriods: BillingPeriodDto[];
+  /** Manually-entered past-bill summaries, oldest first (ui-features-v1.md Phase 5). Fetched and refreshed alongside billingPeriods. */
+  historicalPeriodEntries: HistoricalPeriodEntryDto[];
   /** False until the initial post-contract billing fetch has resolved. */
   billingReady: boolean;
+  /** Refreshes estimate, billingPeriods, and historicalPeriodEntries together. */
   refetchBilling: () => Promise<void>;
   /** True when the contract-bootstrap or billing fetch failed and `GET /health` confirms the server itself is unreachable — distinct from "not authenticated" or "no contract yet". */
   serverUnreachable: boolean;

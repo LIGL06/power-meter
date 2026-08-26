@@ -322,3 +322,38 @@ export interface ImportTariffsResult {
   inserted: number;
   skipped: number;
 }
+
+// ---------------------------------------------------------------------------
+// Historical periods (ui-features-v1.md Phase 5) — manually-entered summaries
+// of bills from before the contract was tracked here. Deliberately separate
+// from BillingPeriodDto: these carry none of a real period's invariants
+// (sequential numbering, tariff snapshot, reading linkage).
+// ---------------------------------------------------------------------------
+
+export interface HistoricalPeriodEntryDto {
+  id: string;
+  contractId: string;
+  startDate: ISODate;
+  endDate: ISODate;
+  importedKwh: number;
+  exportedKwh: number | null;
+  total: number;
+  currency: string;
+  notes?: string;
+  createdBy: string;
+  createdAt: ISODate;
+  updatedAt: ISODate;
+}
+
+export interface CreateHistoricalPeriodDto {
+  startDate: ISODate;
+  endDate: ISODate;
+  importedKwh: number;
+  exportedKwh?: number;
+  total: number;
+  /** Defaults server-side to the contract's tariff currency. */
+  currency?: string;
+  notes?: string;
+}
+
+export type UpdateHistoricalPeriodDto = Partial<CreateHistoricalPeriodDto>;

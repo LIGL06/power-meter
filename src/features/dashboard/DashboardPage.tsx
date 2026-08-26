@@ -7,7 +7,8 @@ import { StatCard } from "./components/StatCard";
 import { ConsumptionCostChart } from "./components/ConsumptionCostChart";
 
 export function DashboardPage() {
-  const { estimate, billingPeriods, billingReady, serverUnreachable, retryConnection } = useAppData();
+  const { estimate, billingPeriods, historicalPeriodEntries, billingReady, serverUnreachable, retryConnection } =
+    useAppData();
 
   const last3Closed = useMemo(
     () => billingPeriods.filter((p) => p.status === "CLOSED" && p.totals).slice(0, 3),
@@ -61,7 +62,7 @@ export function DashboardPage() {
         />
       </div>
 
-      <ConsumptionCostChart periods={billingPeriods} />
+      <ConsumptionCostChart periods={billingPeriods} historicalPeriodEntries={historicalPeriodEntries} />
     </div>
   );
 }

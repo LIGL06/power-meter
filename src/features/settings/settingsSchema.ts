@@ -7,3 +7,23 @@ export const profileSchema = z.object({
   email: z.string().min(1, "Email is required").email("Enter a valid email"),
 });
 export type ProfileFormValues = z.infer<typeof profileSchema>;
+
+/**
+ * Mirrors CreateHistoricalPeriodDto's own checks (startDate < endDate,
+ * non-negative kWh/total) — a fast-fail mirror of the server, which stays the
+ * final authority (it also rejects an endDate in the future).
+ */
+export const historicalPeriodSchema = z
+  .object({
+    startDate: z.string().min(1, "Start date is required"),
+    endDate: z.string().min(1, "End date is required"),
+    importedKwh: z.number().min(0, "Must be zero or higher"),
+    exportedKwh: z.number().min(0, "Must be zero or higher").optional(),
+    total: z.number().min(0, "Must be zero or higher"),
+    notes: z.string().max(500, "Must be at most 500 characters").optional(),
+  })
+  .refine((values) => values.startDate < values.endDate, {
+    message: "Start date must be before the end date",
+    path: ["endDate"],
+  });
+export type HistoricalPeriodFormValues = z.infer<typeof historicalPeriodSchema>;
